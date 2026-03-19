@@ -48,10 +48,8 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         "lerobot-train",
         # Dataset
         f"--dataset.repo_id={cfg['dataset_id']}",
-        # Policy: path (fine-tune) takes priority over type (from scratch)
-        f"--policy.path={cfg['policy']['path']}"
-        if cfg["policy"].get("path")
-        else f"--policy.type={cfg['policy']['type']}",
+        # Policy
+        f"--policy.type={cfg['policy']['type']}",
         f"--policy.device={cfg['policy']['device']}",
         f"--policy.repo_id={hub_repo_id}",
         f"--policy.push_to_hub={'true' if cfg['hub']['push_to_hub'] else 'false'}",
@@ -81,6 +79,10 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         cmd.append(f"--policy.license={cfg['hub']['license']}")
     if cfg["hub"].get("tags"):
         cmd.append(f"--policy.tags={cfg['hub']['tags']}")
+
+    # Optional policy fields
+    if cfg["policy"].get("load_vlm_weights") is not None:
+        cmd.append(f"--policy.load_vlm_weights={'true' if cfg['policy']['load_vlm_weights'] else 'false'}")
 
     # Optional wandb fields
     if cfg["wandb"].get("project"):
@@ -116,9 +118,10 @@ def main():
 
     output_dir, job_name, hub_repo_id = derive_names(cfg)
     version_tag = f"-v{cfg['version']:02d}"
-    policy_src = cfg["policy"].get("path") or cfg["policy"].get("type")
+    policy_src = cfg["policy"]["type"]
+    vlm = "pretrained VLM" if cfg["policy"].get("load_vlm_weights") else "from scratch"
     print(f"=== IPAI Training {version_tag} ===")
-    print(f"  Policy:     {policy_src}")
+    print(f"  Policy:     {policy_src} ({vlm})")
     print(f"  Dataset:    {cfg['dataset_id']}")
     print(f"  Hub repo:   {hub_repo_id}")
     print(f"  Output dir: {output_dir}")

@@ -32,19 +32,15 @@ version: 1
 # Policy
 # =============================================================================
 policy:
-  # Two modes — set ONE of these:
-  #
-  # 1. Fine-tune a pretrained model (recommended for SmolVLA):
-  #      path: "lerobot/smolvla_base"
-  #    Loads the full pretrained model and fine-tunes it.
-  #
-  # 2. Train from scratch:
-  #      type: "act"
-  #    Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
-  #
-  # If both are set, "path" takes priority.
-  path: "lerobot/smolvla_base"
-  # type: "act"
+  # Policy architecture. Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
+  # "smolvla" loads the pretrained VLM backbone and auto-adapts to your dataset's cameras.
+  # "act" is a lightweight alternative (no VLM, trains faster, good for small datasets).
+  type: "smolvla"
+
+  # Load pretrained VLM weights (SmolVLM2-500M-Video-Instruct).
+  # true  = fine-tuning (recommended) — VLM backbone is pretrained, action expert trains fresh
+  # false = train everything from scratch (not recommended)
+  load_vlm_weights: true
 
   # PyTorch device. Options: "cuda" (NVIDIA), "mps" (Apple Silicon), "cpu" (slow).
   device: "cuda"
