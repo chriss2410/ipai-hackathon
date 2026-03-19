@@ -1,0 +1,31 @@
+# =============================================================================
+# IPAI Hackathon - Dataset Merge Configuration
+# =============================================================================
+# This YAML config is translated into `lerobot-edit-dataset` CLI arguments by
+# the wrapper script. Merging requires all datasets to have identical features
+# (same FPS, robot_type, and feature keys/dtypes).
+#
+# Usage:
+#   python train/data.py                              # uses this file
+#   python train/data.py --config path/to/other.yaml  # custom config
+#   python train/data.py --dry-run                    # preview command
+#   python train/data.py --push-to-hub                # also push result to Hub
+
+# =============================================================================
+# Source Datasets — merged in the order listed
+# =============================================================================
+# HuggingFace repo IDs of datasets to merge. Episodes are concatenated in order.
+repo_ids:
+  - "chris241094/dataset-pickupBlue-2"
+  - "chris241094/dataset-l1-0"
+  - "chris241094/dataset-pickupBlue-1"
+
+# =============================================================================
+# Output
+# =============================================================================
+# Repo ID for the merged dataset.
+output_repo_id: "chris241094/train-v1"
+
+# Optional local root directory for the merged dataset.
+# If not set, defaults to $HF_LEROBOT_HOME/<output_repo_id>.
+# output_root: "outputs/data/svla_so101_pickplace_merged"
