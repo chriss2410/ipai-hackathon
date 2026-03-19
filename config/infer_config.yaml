@@ -45,17 +45,23 @@ robot:
 # Camera keys and resolutions MUST match those used during training.
 # Check the model's config.json on the Hub for expected camera keys.
 # Find your cameras with: lerobot-find-cameras
+# Add multiple cameras if the model was trained with multiple views.
 cameras:
-  camera1:
+  wrist:
     index_or_path: "/dev/video8"
     width: 640
     height: 480
     fps: 30
-  # camera2:
-  #   index_or_path: 1
-  #   width: 640
-  #   height: 480
-  #   fps: 30
+  front:
+    index_or_path: "/dev/video0"
+    width: 640
+    height: 480
+    fps: 30
+  top:
+    index_or_path: "/dev/video2"
+    width: 640
+    height: 480
+    fps: 30
 
 # ---- Task ----
 # Natural language description of the task. Used by vision-language-action
