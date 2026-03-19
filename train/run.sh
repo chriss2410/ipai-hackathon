@@ -5,7 +5,7 @@
 #   ./train/run.sh --config path/to/other.yaml  # custom config
 #   ./train/run.sh --resume                     # resume from checkpoint
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG="${SCRIPT_DIR}/train_config.yaml"
@@ -37,7 +37,7 @@ echo "  Output:   ${OUTPUT_DIR}"
 echo "  Log file: ${LOGFILE}"
 echo ""
 
-nohup python3 "${SCRIPT_DIR}/train.py" "${TRAIN_ARGS[@]}" > "${LOGFILE}" 2>&1 &
+nohup python3 "${SCRIPT_DIR}/train.py" "$@" > "${LOGFILE}" 2>&1 &
 PID=$!
 
 echo "Training started in background (PID: ${PID})"
