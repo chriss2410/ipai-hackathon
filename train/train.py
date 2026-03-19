@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This script demonstrates how to train Diffusion Policy on the PushT environment."""
+"""Train Diffusion Policy on configurable dataset using a YAML config file."""
 
+import argparse
 from pathlib import Path
 
+import yaml
 import torch
 
 from lerobot.configs.types import FeatureType
@@ -27,74 +29,74 @@ from lerobot.policies.diffusion.modeling_diffusion import DiffusionPolicy
 from lerobot.policies.factory import make_pre_post_processors
 
 
+def load_config(config_path: str) -> dict:
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
 def main():
-    # Create a directory to store the training checkpoint.
-    output_directory = Path("outputs/train/example_pusht_diffusion")
+    parser = argparse.ArgumentParser(description="Train a Diffusion Policy")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/train_config.yaml",
+        help="Path to YAML config file",
+    )
+    args = parser.parse_args()
+
+    cfg_yaml = load_config(args.config)
+
+    # ---- Unpack config ----
+    version_tag = f"-v{cfg_yaml['version']:02d}"
+    dataset_id = cfg_yaml["dataset"]["id"]
+    hf_repo_id = f"{cfg_yaml['hub']['repo_id']}{version_tag}"
+    push_to_hub = cfg_yaml["hub"]["push_to_hub"]
+    output_directory = Path(f"{cfg_yaml['output']['directory']}{version_tag}")
     output_directory.mkdir(parents=True, exist_ok=True)
-    hf_repo_id = "chris241094/smolVLA-Test"  # Change this to your Hugging Face repo ID if you want to push the model to the Hub.
 
-    # # Select your device
-    device = torch.device("cuda")
+    device = torch.device(cfg_yaml["device"])
 
-    # Number of offline training steps (we'll only do offline training for this example.)
-    # Adjust as you prefer. 5000 steps are needed to get something worth evaluating.
-    training_steps = 5000
-    log_freq = 1
+    train_cfg = cfg_yaml["training"]
+    training_steps = train_cfg["steps"]
+    lr = train_cfg["learning_rate"]
+    batch_size = train_cfg["batch_size"]
+    num_workers = train_cfg["num_workers"]
+    log_freq = train_cfg["log_freq"]
+    shuffle = train_cfg["shuffle"]
+    pin_memory = train_cfg["pin_memory"] and device.type != "cpu"
+    drop_last = train_cfg["drop_last"]
 
-    # When starting from scratch (i.e. not from a pretrained policy), we need to specify 2 things before
-    # creating the policy:
-    #   - input/output shapes: to properly size the policy
-    #   - dataset stats: for normalization and denormalization of input/outputs
-    dataset_metadata = LeRobotDatasetMetadata("lerobot/pusht")
+    delta_timestamps = cfg_yaml["delta_timestamps"]
+
+    # ---- Dataset & features ----
+    dataset_metadata = LeRobotDatasetMetadata(dataset_id)
     features = dataset_to_policy_features(dataset_metadata.features)
     output_features = {key: ft for key, ft in features.items() if ft.type is FeatureType.ACTION}
     input_features = {key: ft for key, ft in features.items() if key not in output_features}
 
-    # Policies are initialized with a configuration class, in this case `DiffusionConfig`. For this example,
-    # we'll just use the defaults and so no arguments other than input/output features need to be passed.
-    cfg = DiffusionConfig(input_features=input_features, output_features=output_features)
-
-    # We can now instantiate our policy with this config and the dataset stats.
-    policy = DiffusionPolicy(cfg)
+    # ---- Policy ----
+    policy_cfg = DiffusionConfig(input_features=input_features, output_features=output_features)
+    policy = DiffusionPolicy(policy_cfg)
     policy.train()
     policy.to(device)
-    preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=dataset_metadata.stats)
+    preprocessor, postprocessor = make_pre_post_processors(policy_cfg, dataset_stats=dataset_metadata.stats)
 
-    # Another policy-dataset interaction is with the delta_timestamps. Each policy expects a given number frames
-    # which can differ for inputs, outputs and rewards (if there are some).
-    delta_timestamps = {
-        "observation.image": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-        "observation.state": [i / dataset_metadata.fps for i in cfg.observation_delta_indices],
-        "action": [i / dataset_metadata.fps for i in cfg.action_delta_indices],
-    }
-
-    # In this case with the standard configuration for Diffusion Policy, it is equivalent to this:
-    delta_timestamps = {
-        # Load the previous image and state at -0.1 seconds before current frame,
-        # then load current image and state corresponding to 0.0 second.
-        "observation.image": [-0.1, 0.0],
-        "observation.state": [-0.1, 0.0],
-        # Load the previous action (-0.1), the next action to be executed (0.0),
-        # and 14 future actions with a 0.1 seconds spacing. All these actions will be
-        # used to supervise the policy.
-        "action": [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4],
-    }
-
-    # We can then instantiate the dataset with these delta_timestamps configuration.
-    dataset = LeRobotDataset("lerobot/pusht", delta_timestamps=delta_timestamps)
-
-    # Then we create our optimizer and dataloader for offline training.
-    optimizer = torch.optim.Adam(policy.parameters(), lr=1e-4)
+    # ---- Dataset & dataloader ----
+    dataset = LeRobotDataset(dataset_id, delta_timestamps=delta_timestamps)
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        num_workers=4,
-        batch_size=64,
-        shuffle=True,
-        pin_memory=device.type != "cpu",
-        drop_last=True,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        pin_memory=pin_memory,
+        drop_last=drop_last,
     )
 
-    # Run training loop.
+    # ---- Optimizer ----
+    optimizer = torch.optim.Adam(policy.parameters(), lr=lr)
+
+    # ---- Training loop ----
+    print(f"Training {version_tag} for {training_steps} steps | dataset={dataset_id} | device={device}")
     step = 0
     done = False
     while not done:
@@ -112,15 +114,17 @@ def main():
                 done = True
                 break
 
-    # Save a policy checkpoint.
+    # ---- Save checkpoint ----
     policy.save_pretrained(output_directory)
     preprocessor.save_pretrained(output_directory)
     postprocessor.save_pretrained(output_directory)
-    
-    # Save to hub
-    policy.push_to_hub(hf_repo_id)
-    preprocessor.push_to_hub(hf_repo_id)
-    postprocessor.push_to_hub(hf_repo_id)
+    print(f"Checkpoint saved to {output_directory}")
+
+    if push_to_hub:
+        policy.push_to_hub(hf_repo_id)
+        preprocessor.push_to_hub(hf_repo_id)
+        postprocessor.push_to_hub(hf_repo_id)
+        print(f"Pushed to hub: {hf_repo_id}")
 
 
 if __name__ == "__main__":

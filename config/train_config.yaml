@@ -1,0 +1,48 @@
+# =============================================================================
+# IPAI Hackathon - Training Configuration
+# =============================================================================
+# Edit this file to change training parameters without modifying code.
+
+# ---- Version ----
+# Appended as "-v01" suffix to output directory and hub repo ID.
+version: 1
+
+# ---- Dataset ----
+dataset:
+  id: "lerobot/pusht"
+
+# ---- Model ----
+model:
+  # Policy type: "diffusion" (more to come)
+  policy: "diffusion"
+
+# ---- Hub ----
+hub:
+  repo_id: "chris241094/smolVLA-Test"
+  push_to_hub: true
+
+# ---- Output ----
+output:
+  directory: "outputs/train/example_pusht_diffusion"
+
+# ---- Device ----
+device: "cuda"  # "cuda", "cpu", or "mps"
+
+# ---- Training Parameters ----
+training:
+  steps: 5000
+  learning_rate: 1.0e-4
+  batch_size: 64
+  num_workers: 4
+  log_freq: 1
+  shuffle: true
+  pin_memory: true   # auto-disabled on CPU
+  drop_last: true
+
+# ---- Delta Timestamps ----
+# Temporal frame sampling relative to current step (in seconds).
+# These define which past/future frames the policy sees and predicts.
+delta_timestamps:
+  observation.image: [-0.1, 0.0]
+  observation.state: [-0.1, 0.0]
+  action: [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
