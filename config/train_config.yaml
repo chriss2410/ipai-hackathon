@@ -9,7 +9,7 @@ version: 1
 
 # ---- Dataset ----
 dataset:
-  id: "lerobot/pusht"
+  id: "lerobot/svla_so101_pickplace"
 
 # ---- Model ----
 model:
@@ -23,7 +23,7 @@ hub:
 
 # ---- Output ----
 output:
-  directory: "outputs/train/example_pusht_diffusion"
+  directory: "outputs/train/example_svla_so101_pickplace_diffusion"
 
 # ---- Device ----
 device: "cuda"  # "cuda", "cpu", or "mps"
@@ -32,7 +32,7 @@ device: "cuda"  # "cuda", "cpu", or "mps"
 training:
   steps: 5000
   learning_rate: 1.0e-4
-  batch_size: 64
+  batch_size: 128
   num_workers: 4
   log_freq: 1
   shuffle: true
@@ -40,9 +40,6 @@ training:
   drop_last: true
 
 # ---- Delta Timestamps ----
-# Temporal frame sampling relative to current step (in seconds).
-# These define which past/future frames the policy sees and predicts.
-delta_timestamps:
-  observation.image: [-0.1, 0.0]
-  observation.state: [-0.1, 0.0]
-  action: [-0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
+# Set to "auto" to derive from dataset features + policy config.
+# Or specify manually per feature key.
+delta_timestamps: auto

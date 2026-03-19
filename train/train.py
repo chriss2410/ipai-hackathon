@@ -66,7 +66,7 @@ def main():
     pin_memory = train_cfg["pin_memory"] and device.type != "cpu"
     drop_last = train_cfg["drop_last"]
 
-    delta_timestamps = cfg_yaml["delta_timestamps"]
+    delta_timestamps_cfg = cfg_yaml["delta_timestamps"]
 
     # ---- Dataset & features ----
     dataset_metadata = LeRobotDatasetMetadata(dataset_id)
@@ -80,6 +80,19 @@ def main():
     policy.train()
     policy.to(device)
     preprocessor, postprocessor = make_pre_post_processors(policy_cfg, dataset_stats=dataset_metadata.stats)
+
+    # ---- Delta timestamps ----
+    if delta_timestamps_cfg == "auto":
+        obs_ts = [i / dataset_metadata.fps for i in policy_cfg.observation_delta_indices]
+        act_ts = [i / dataset_metadata.fps for i in policy_cfg.action_delta_indices]
+        delta_timestamps = {}
+        for key in input_features:
+            delta_timestamps[key] = obs_ts
+        for key in output_features:
+            delta_timestamps[key] = act_ts
+        print(f"Auto-derived delta_timestamps: {delta_timestamps}")
+    else:
+        delta_timestamps = delta_timestamps_cfg
 
     # ---- Dataset & dataloader ----
     dataset = LeRobotDataset(dataset_id, delta_timestamps=delta_timestamps)
