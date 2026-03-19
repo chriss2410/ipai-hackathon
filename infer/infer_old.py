@@ -70,15 +70,12 @@ def main():
     obs_features = hw_to_dataset_features(robot.observation_features, "observation")
     dataset_features = {**action_features, **obs_features}
 
-    # ---- Inference loop ----
-    infer_cfg = cfg["inference"]
-    max_episodes = infer_cfg["max_episodes"]
-    max_steps = infer_cfg["max_steps_per_episode"]
+    # ---- Inference loop (runs until Ctrl+C) ----
+    print(f"Inference | model={model_id} | device={device} | Press Ctrl+C to stop")
 
-    print(f"Inference | model={model_id} | device={device} | episodes={max_episodes} x {max_steps} steps")
-
-    for ep in range(max_episodes):
-        for _ in range(max_steps):
+    step = 0
+    try:
+        while True:
             obs = robot.get_observation()
             obs_frame = build_inference_frame(
                 observation=obs, ds_features=dataset_features, device=device, task=task, robot_type=robot_type
@@ -90,7 +87,12 @@ def main():
             action = make_robot_action(action, dataset_features)
             robot.send_action(action)
 
-        print(f"Episode {ep + 1}/{max_episodes} finished!")
+            step += 1
+            if step % 100 == 0:
+                print(f"  {step} steps completed...")
+    except KeyboardInterrupt:
+        print(f"\nStopped after {step} steps.")
+        robot.disconnect()
 
 
 if __name__ == "__main__":
