@@ -1,0 +1,82 @@
+# =============================================================================
+# IPAI Hackathon - Inference Configuration
+# =============================================================================
+# Edit this file to change inference parameters without modifying code.
+# Usage:
+#   python infer/infer.py                              # uses this file
+#   python infer/infer.py --config path/to/other.yaml  # custom config
+
+# ---- Model ----
+model:
+  # HuggingFace model ID of the pretrained policy to load.
+  # Can be an official model (e.g. "lerobot/smolvla_base") or your own
+  # trained model pushed to the Hub (e.g. "chris241094/smolVLA-Test-v01").
+  id: "lerobot/smolvla_base"
+
+# ---- Device ----
+# PyTorch device for inference. Options:
+#   "cuda"  - NVIDIA GPU (fastest)
+#   "cpu"   - CPU only (works everywhere, slower)
+#   "mps"   - Apple Silicon GPU
+# Note: SmolVLA can run on CPU for real-time inference with small action spaces.
+device: "cpu"
+
+# ---- Robot ----
+robot:
+  # Robot hardware type. Determines the driver and calibration used.
+  # Currently supported: "so100_follower"
+  type: "so100_follower"
+
+  # Serial port the robot is connected to.
+  # Find available ports with: lerobot-find-port
+  # Linux example:  "/dev/ttyACM0"
+  # macOS example:  "/dev/tty.usbmodem58760431631"
+  port: "/dev/ttyACM1"
+
+  # Robot instance ID. Used to locate the correct calibration file.
+  # Must match the ID used during calibration (e.g. "follower", "follower_so100").
+  id: "follower"
+
+# ---- Cameras ----
+# Map of camera name -> OpenCV camera configuration.
+# IMPORTANT: Camera keys and resolutions MUST match those used during training.
+# Check the model's info.json on the Hub for expected camera keys.
+#
+# Each camera entry requires:
+#   index_or_path  - Device path (e.g. "/dev/video0") or integer index (e.g. 0)
+#   width          - Capture width in pixels
+#   height         - Capture height in pixels
+#   fps            - Capture framerate
+#
+# Add multiple cameras if the model was trained with multiple views.
+cameras:
+  camera1:
+    index_or_path: "/dev/video8"
+    width: 640
+    height: 480
+    fps: 30
+  # camera2:
+  #   index_or_path: 1
+  #   width: 640
+  #   height: 480
+  #   fps: 30
+
+# ---- Task ----
+# Natural language description of the task for the robot to perform.
+# SmolVLA is a vision-language-action model that conditions on this text.
+# Examples: "pick the red block", "move to the left", "stack the cups"
+task: "Move slightly up"
+
+# Robot type string for multi-embodiment datasets/models.
+# Leave empty ("") if the model was trained on a single robot type.
+# Example: "so100_follower" when the model supports multiple robot morphologies.
+robot_type: ""
+
+# ---- Inference Loop ----
+inference:
+  # Number of episodes to run. Each episode resets and runs a fresh sequence.
+  max_episodes: 5
+
+  # Maximum action steps per episode before moving to the next one.
+  # The robot executes one action per step (observation -> model -> action).
+  max_steps_per_episode: 20

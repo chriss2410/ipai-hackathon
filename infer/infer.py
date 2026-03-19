@@ -1,3 +1,8 @@
+"""Run SmolVLA inference on a physical robot using a YAML config file."""
+
+import argparse
+
+import yaml
 import torch
 
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
@@ -7,64 +12,84 @@ from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
 from lerobot.policies.utils import build_inference_frame, make_robot_action
 from lerobot.robots.so_follower import SO100Follower, SO100FollowerConfig
 
-MAX_EPISODES = 5
-MAX_STEPS_PER_EPISODE = 20
+
+def load_config(config_path: str) -> dict:
+    with open(config_path) as f:
+        return yaml.safe_load(f)
 
 
 def main():
-    device = torch.device("cpu")  # or "cuda" or "cpu"
-    model_id = "lerobot/smolvla_base"
+    parser = argparse.ArgumentParser(description="Run SmolVLA inference")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/infer_config.yaml",
+        help="Path to YAML config file",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+
+    # ---- Device & model ----
+    device = torch.device(cfg["device"])
+    model_id = cfg["model"]["id"]
 
     model = SmolVLAPolicy.from_pretrained(model_id)
-
     preprocess, postprocess = make_pre_post_processors(
         model.config,
         model_id,
-        # This overrides allows to run on MPS, otherwise defaults to CUDA (if available)
         preprocessor_overrides={"device_processor": {"device": str(device)}},
     )
 
-    # find ports using lerobot-find-port
-    follower_port = "/dev/ttyACM1"  # something like "/dev/tty.usbmodem58760431631"
-
-    # the robot ids are used the load the right calibration files
-    follower_id = "follower"  # something like "follower_so100"
-
-    # Robot and environment configuration
-    # Camera keys must match the name and resolutions of the ones used for training!
-    # You can check the camera keys expected by a model in the info.json card on the model card on the Hub
+    # ---- Robot ----
+    robot_cfg_yaml = cfg["robot"]
     camera_config = {
-        "camera1": OpenCVCameraConfig(index_or_path="/dev/video8", width=640, height=480, fps=30),
-        # "camera2": OpenCVCameraConfig(index_or_path=1, width=640, height=480, fps=30),
+        name: OpenCVCameraConfig(
+            index_or_path=cam["index_or_path"],
+            width=cam["width"],
+            height=cam["height"],
+            fps=cam["fps"],
+        )
+        for name, cam in cfg["cameras"].items()
     }
 
-    robot_cfg = SO100FollowerConfig(port=follower_port, id=follower_id, cameras=camera_config)
+    robot_cfg = SO100FollowerConfig(
+        port=robot_cfg_yaml["port"],
+        id=robot_cfg_yaml["id"],
+        cameras=camera_config,
+    )
     robot = SO100Follower(robot_cfg)
     robot.connect()
 
-    task = "Move slightly up"  # something like "pick the red block"
-    robot_type = ""  # something like "so100_follower" for multi-embodiment datasets
+    # ---- Task & features ----
+    task = cfg["task"]
+    robot_type = cfg["robot_type"]
 
-    # This is used to match the raw observation keys to the keys expected by the policy
     action_features = hw_to_dataset_features(robot.action_features, "action")
     obs_features = hw_to_dataset_features(robot.observation_features, "observation")
     dataset_features = {**action_features, **obs_features}
 
-    for _ in range(MAX_EPISODES):
-        for _ in range(MAX_STEPS_PER_EPISODE):
+    # ---- Inference loop ----
+    infer_cfg = cfg["inference"]
+    max_episodes = infer_cfg["max_episodes"]
+    max_steps = infer_cfg["max_steps_per_episode"]
+
+    print(f"Inference | model={model_id} | device={device} | episodes={max_episodes} x {max_steps} steps")
+
+    for ep in range(max_episodes):
+        for _ in range(max_steps):
             obs = robot.get_observation()
             obs_frame = build_inference_frame(
                 observation=obs, ds_features=dataset_features, device=device, task=task, robot_type=robot_type
             )
 
             obs = preprocess(obs_frame)
-
             action = model.select_action(obs)
             action = postprocess(action)
             action = make_robot_action(action, dataset_features)
             robot.send_action(action)
 
-        print("Episode finished! Starting new episode...")
+        print(f"Episode {ep + 1}/{max_episodes} finished!")
 
 
 if __name__ == "__main__":
