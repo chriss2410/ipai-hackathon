@@ -21,11 +21,11 @@ policy:
 
   # HuggingFace model ID or local checkpoint path.
   # Examples: "lerobot/smolvla_base", "chris241094/smolVLA-Test-v01"
-  pretrained_name_or_path: "lerobot/smolvla_base"
+  pretrained_name_or_path: "chris241094/smolVLA-New-v01"
 
   # Device for running inference on the server (cuda, mps, cpu).
   policy_device: "cpu"
-
+  
   # Device for actions on the client side after receiving from server.
   client_device: "cpu"
 
@@ -96,7 +96,7 @@ async:
 # =============================================================================
 test:
   # HuggingFace dataset to replay through the mock robot.
-  dataset: "lerobot/svla_so101_pickplace"
+  dataset: "chris241094/dataset-pickupBlue-1"
   episode: 0
 
   # Maps robot camera names → dataset camera keys.

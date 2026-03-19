@@ -11,7 +11,7 @@ model:
   # HuggingFace model ID of the pretrained policy to load.
   # Can be an official model (e.g. "lerobot/smolvla_base") or your own
   # trained model pushed to the Hub (e.g. "chris241094/smolVLA-Test-v01").
-  id: "chris241094/smolVLA-v00"
+  id: "chris241094/smolVLA-New-v01"
 
 # ---- Device ----
 # PyTorch device for inference. Options:

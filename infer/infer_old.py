@@ -24,7 +24,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default=str(Path(__file__).parent / "infer_config.yaml"),
+        default=str(Path(__file__).parent / "infer_config_old.yaml"),
         help="Path to YAML config file",
     )
     args = parser.parse_args()
