@@ -21,12 +21,23 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def build_command(cfg: dict, resume: bool = False) -> list[str]:
+def derive_names(cfg: dict) -> tuple[str, str, str]:
+    """Derive output_dir, job_name, and hub_repo_id from model_id + version."""
     version_tag = f"-v{cfg['version']:02d}"
+    model_id = cfg["model_id"]  # e.g. "chris241094/act-svla-so101-pickplace"
 
-    output_dir = f"{cfg['output']['directory']}{version_tag}"
-    job_name = f"{cfg['output']['job_name']}{version_tag}"
-    hub_repo_id = f"{cfg['hub']['repo_id']}{version_tag}"
+    # Short name = part after the slash (or full id if no slash)
+    short_name = model_id.split("/")[-1]
+
+    hub_repo_id = f"{model_id}{version_tag}"
+    output_dir = f"outputs/train/{short_name}{version_tag}"
+    job_name = f"{short_name}{version_tag}"
+
+    return output_dir, job_name, hub_repo_id
+
+
+def build_command(cfg: dict, resume: bool = False) -> list[str]:
+    output_dir, job_name, hub_repo_id = derive_names(cfg)
 
     # Resume from last checkpoint
     if resume:
@@ -36,7 +47,7 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
     cmd = [
         "lerobot-train",
         # Dataset
-        f"--dataset.repo_id={cfg['dataset']['repo_id']}",
+        f"--dataset.repo_id={cfg['dataset_id']}",
         # Policy
         f"--policy.type={cfg['policy']['type']}",
         f"--policy.device={cfg['policy']['device']}",
@@ -101,9 +112,14 @@ def main():
     cfg = load_config(args.config)
     cmd = build_command(cfg, resume=args.resume)
 
+    output_dir, job_name, hub_repo_id = derive_names(cfg)
     version_tag = f"-v{cfg['version']:02d}"
     print(f"=== IPAI Training {version_tag} ===")
-    print(f"Command: {' '.join(cmd)}\n")
+    print(f"  Hub repo:   {hub_repo_id}")
+    print(f"  Output dir: {output_dir}")
+    print(f"  Job name:   {job_name}")
+    print(f"  Dataset:    {cfg['dataset_id']}")
+    print(f"\nCommand: {' '.join(cmd)}\n")
 
     if args.dry_run:
         return

@@ -8,89 +8,76 @@
 #   python train/train.py                              # uses this file
 #   python train/train.py --config path/to/other.yaml  # custom config
 #   python train/train.py --resume                     # resume last checkpoint
+#   python train/train.py --dry-run                    # preview command
 
-# ---- Version ----
-# Integer version number. Formatted as "-v{nn}" and appended to:
-#   - Output directory:  outputs/train/...-v01
-#   - HuggingFace repo:  chris241094/smolVLA-Test-v01
-#   - Job name:          act_svla_so101_pickplace-v01
-# Bump this each time you start a new training run to avoid overwriting.
+# =============================================================================
+# Core IDs — everything else is derived from these three
+# =============================================================================
+
+# HuggingFace model repo (without version). Used to derive:
+#   - Hub repo:    chris241094/act-svla-so101-pickplace-v01
+#   - Output dir:  outputs/train/act-svla-so101-pickplace-v01
+#   - Job name:    act-svla-so101-pickplace-v01
+model_id: "chris241094/act-svla-so101-pickplace"
+
+# HuggingFace dataset ID in LeRobot format.
+# The policy auto-adapts to the dataset's motors, actions, and cameras.
+dataset_id: "lerobot/svla_so101_pickplace"
+
+# Integer version number. Formatted as "-v{nn}" and appended to all output
+# assets. Bump this each time you start a new training run to avoid overwriting.
 version: 1
 
-# ---- Dataset ----
-dataset:
-  # HuggingFace dataset ID in LeRobot format (e.g. "lerobot/pusht").
-  # The policy auto-adapts to the dataset's motors, actions, and cameras.
-  repo_id: "lerobot/svla_so101_pickplace"
-
-# ---- Policy ----
+# =============================================================================
+# Policy
+# =============================================================================
 policy:
   # Policy architecture. Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
   # "act" is recommended for SO100-style robots (fast, stable, good for small datasets).
-  # "diffusion" works well but is slower to train.
   type: "act"
 
-  # PyTorch device for training. Options:
-  #   "cuda"  - NVIDIA GPU (recommended, required for large batch sizes)
-  #   "cpu"   - CPU only (very slow, for debugging)
-  #   "mps"   - Apple Silicon GPU
+  # PyTorch device. Options: "cuda" (NVIDIA), "mps" (Apple Silicon), "cpu" (slow).
   device: "cuda"
 
-# ---- Hub ----
+# =============================================================================
+# Hub
+# =============================================================================
 hub:
-  # Base HuggingFace repo ID where the trained model will be pushed.
-  # Version tag is appended automatically (e.g. chris241094/smolVLA-Test-v01).
-  repo_id: "chris241094/smolVLA-Test"
-
   # Whether to push the trained model to HuggingFace Hub after training.
-  # Set to false for local-only runs.
   push_to_hub: true
 
-  # Make the HuggingFace model repo private. Set to true to restrict access.
+  # Make the HuggingFace model repo private.
   private: false
 
-  # Optional license for the model repo (e.g. "mit", "apache-2.0").
+  # Optional license (e.g. "mit", "apache-2.0").
   # license: "mit"
 
-  # Optional tags for the model repo (e.g. ["robotics", "act", "so100"]).
+  # Optional tags (e.g. ["robotics", "act", "so100"]).
   # tags: ["robotics", "act"]
 
-# ---- Output ----
-output:
-  # Base path for saving local checkpoints. Version tag is appended.
-  # Checkpoints are saved in <directory>-v01/checkpoints/
-  # Created automatically if it doesn't exist.
-  directory: "outputs/train/act_svla_so101_pickplace"
-
-  # Job name for wandb and logging. Version tag is appended.
-  # If not set, auto-generated from policy type + dataset name.
-  job_name: "act_svla_so101_pickplace"
-
-# ---- Training Parameters ----
+# =============================================================================
+# Training Parameters
+# =============================================================================
 training:
-  # Total number of gradient update steps. The training loop iterates over the
-  # dataloader and stops after this many steps (not epochs).
+  # Total gradient update steps (not epochs).
   # Typical: 5000 for quick tests, 50000-100000 for real training.
   steps: 100000
 
-  # Number of samples per gradient update. Larger batches give more stable
-  # gradients but require more GPU memory.
-  # Reduce if you hit CUDA out-of-memory errors.
+  # Samples per gradient update. Reduce if you hit CUDA OOM.
   batch_size: 8
 
-  # Number of parallel worker processes for data loading.
-  # Higher = faster data loading but more CPU/RAM usage.
-  # Set to 0 for single-process loading (useful for debugging).
+  # Parallel data loading workers. 0 = single-process (for debugging).
   num_workers: 4
 
   # Print training loss every N steps.
-  # Set to 1 to log every step, higher values reduce console noise.
   log_freq: 200
 
   # Random seed for reproducibility. Set to null to disable.
   seed: 1000
 
-# ---- Checkpointing ----
+# =============================================================================
+# Checkpointing
+# =============================================================================
 checkpointing:
   # Whether to save checkpoints during training.
   save_checkpoint: true
@@ -98,23 +85,26 @@ checkpointing:
   # Save a checkpoint every N steps. Also saves at the end of training.
   save_freq: 20000
 
-# ---- Evaluation ----
+# =============================================================================
+# Evaluation
+# =============================================================================
 eval:
-  # Run evaluation every N steps. Set to a high value to skip during training.
+  # Run evaluation every N steps. Set high to skip during training.
   eval_freq: 20000
 
-  # Number of episodes to run during each evaluation.
+  # Number of episodes per evaluation.
   n_episodes: 50
 
-# ---- Weights & Biases ----
-# Visualize training curves, loss, and evaluation metrics in real time.
+# =============================================================================
+# Weights & Biases
+# =============================================================================
 # Requires: `wandb login` before first use.
 wandb:
-  # Enable wandb logging. Set to false to disable.
+  # Enable wandb logging.
   enable: true
 
-  # Wandb project name. Runs will appear under this project in your dashboard.
+  # Wandb project name.
   project: "lerobot"
 
-  # Optional wandb entity (team or username). Leave empty for default account.
+  # Optional wandb entity (team or username).
   # entity: "my-team"
