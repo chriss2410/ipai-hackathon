@@ -1,54 +1,50 @@
 # =============================================================================
-# IPAI Hackathon - Inference Configuration
+# IPAI Hackathon - Async Inference Configuration
 # =============================================================================
-# Edit this file to change inference parameters without modifying code.
+# This config drives both the PolicyServer and the RobotClient.
 # Usage:
-#   python infer/infer.py                              # uses this file
-#   python infer/infer.py --config path/to/other.yaml  # custom config
+#   Terminal 1: python infer/policy_server.py                  # start server
+#   Terminal 2: python infer/infer.py                          # start client
+#   Custom:     python infer/infer.py --config path/to/other.yaml
 
-# ---- Model ----
-model:
-  # HuggingFace model ID of the pretrained policy to load.
-  # Can be an official model (e.g. "lerobot/smolvla_base") or your own
-  # trained model pushed to the Hub (e.g. "chris241094/smolVLA-Test-v01").
-  id: "lerobot/smolvla_base"
+# ---- Policy Server ----
+# Host and port the PolicyServer listens on.
+# Use "0.0.0.0" to accept connections from remote machines.
+server:
+  host: "127.0.0.1"
+  port: 8080
 
-# ---- Device ----
-# PyTorch device for inference. Options:
-#   "cuda"  - NVIDIA GPU (fastest)
-#   "cpu"   - CPU only (works everywhere, slower)
-#   "mps"   - Apple Silicon GPU
-# Note: SmolVLA can run on CPU for real-time inference with small action spaces.
-device: "cpu"
+# ---- Policy / Model ----
+policy:
+  # Policy type. Options: act, smolvla, diffusion, tdmpc, vqbet, pi0, pi05, groot
+  type: "smolvla"
+
+  # HuggingFace model ID or local checkpoint path.
+  # Examples: "lerobot/smolvla_base", "chris241094/smolVLA-Test-v01"
+  pretrained_name_or_path: "lerobot/smolvla_base"
+
+  # Device for running inference on the server (cuda, mps, cpu).
+  policy_device: "cpu"
+
+  # Device for actions on the client side after receiving from server.
+  client_device: "cpu"
 
 # ---- Robot ----
 robot:
-  # Robot hardware type. Determines the driver and calibration used.
-  # Currently supported: "so100_follower"
+  # Robot hardware type. Currently supported: "so100_follower", "so101_follower"
   type: "so100_follower"
 
   # Serial port the robot is connected to.
   # Find available ports with: lerobot-find-port
-  # Linux example:  "/dev/ttyACM0"
-  # macOS example:  "/dev/tty.usbmodem58760431631"
   port: "/dev/ttyACM1"
 
-  # Robot instance ID. Used to locate the correct calibration file.
-  # Must match the ID used during calibration (e.g. "follower", "follower_so100").
+  # Robot instance ID. Must match the ID used during calibration.
   id: "follower"
 
 # ---- Cameras ----
-# Map of camera name -> OpenCV camera configuration.
-# IMPORTANT: Camera keys and resolutions MUST match those used during training.
-# Check the model's info.json on the Hub for expected camera keys.
-#
-# Each camera entry requires:
-#   index_or_path  - Device path (e.g. "/dev/video0") or integer index (e.g. 0)
-#   width          - Capture width in pixels
-#   height         - Capture height in pixels
-#   fps            - Capture framerate
-#
-# Add multiple cameras if the model was trained with multiple views.
+# Camera keys and resolutions MUST match those used during training.
+# Check the model's config.json on the Hub for expected camera keys.
+# Find your cameras with: lerobot-find-cameras
 cameras:
   camera1:
     index_or_path: "/dev/video8"
@@ -62,21 +58,29 @@ cameras:
   #   fps: 30
 
 # ---- Task ----
-# Natural language description of the task for the robot to perform.
-# SmolVLA is a vision-language-action model that conditions on this text.
-# Examples: "pick the red block", "move to the left", "stack the cups"
+# Natural language description of the task. Used by vision-language-action
+# policies (e.g. SmolVLA). Not required for policies like ACT.
 task: "Move slightly up"
 
-# Robot type string for multi-embodiment datasets/models.
-# Leave empty ("") if the model was trained on a single robot type.
-# Example: "so100_follower" when the model supports multiple robot morphologies.
-robot_type: ""
+# ---- Async Inference Parameters ----
+async:
+  # Number of actions the policy outputs per chunk. Typical range: 10-50.
+  # Must be <= the policy's max actions value.
+  actions_per_chunk: 50
 
-# ---- Inference Loop ----
-inference:
-  # Number of episodes to run. Each episode resets and runs a fresh sequence.
-  max_episodes: 5
+  # When the action queue drops to this fraction of chunk size, the client
+  # sends a fresh observation to the server. Value in [0, 1].
+  #   ~0.0 → nearly synchronous (wait until queue exhausted)
+  #   ~0.5 → balanced (default, good starting point)
+  #   ~1.0 → send observation every step (high bandwidth, most adaptive)
+  chunk_size_threshold: 0.5
 
-  # Maximum action steps per episode before moving to the next one.
-  # The robot executes one action per step (observation -> model -> action).
-  max_steps_per_episode: 20
+  # Function to aggregate overlapping action chunks.
+  # Options: weighted_average, latest_only, average, conservative
+  aggregate_fn_name: "weighted_average"
+
+  # Target FPS for the control loop.
+  fps: 30
+
+  # Plot action queue size at runtime for tuning async parameters.
+  debug_visualize_queue_size: false

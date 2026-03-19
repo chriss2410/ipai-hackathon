@@ -1,16 +1,15 @@
-"""Run SmolVLA inference on a physical robot using a YAML config file."""
+"""Async inference client for physical robots using LeRobot's PolicyServer."""
 
 import argparse
+import threading
 
 import yaml
-import torch
 
+from lerobot.async_inference.configs import RobotClientConfig
+from lerobot.async_inference.helpers import visualize_action_queue_size
+from lerobot.async_inference.robot_client import RobotClient
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
-from lerobot.datasets.feature_utils import hw_to_dataset_features
-from lerobot.policies.factory import make_pre_post_processors
-from lerobot.policies.smolvla.modeling_smolvla import SmolVLAPolicy
-from lerobot.policies.utils import build_inference_frame, make_robot_action
-from lerobot.robots.so_follower import SO100Follower, SO100FollowerConfig
+from lerobot.robots.so_follower import SO100FollowerConfig
 
 
 def load_config(config_path: str) -> dict:
@@ -19,7 +18,7 @@ def load_config(config_path: str) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run SmolVLA inference")
+    parser = argparse.ArgumentParser(description="Run async inference (robot client)")
     parser.add_argument(
         "--config",
         type=str,
@@ -30,19 +29,7 @@ def main():
 
     cfg = load_config(args.config)
 
-    # ---- Device & model ----
-    device = torch.device(cfg["device"])
-    model_id = cfg["model"]["id"]
-
-    model = SmolVLAPolicy.from_pretrained(model_id)
-    preprocess, postprocess = make_pre_post_processors(
-        model.config,
-        model_id,
-        preprocessor_overrides={"device_processor": {"device": str(device)}},
-    )
-
-    # ---- Robot ----
-    robot_cfg_yaml = cfg["robot"]
+    # ---- Cameras ----
     camera_config = {
         name: OpenCVCameraConfig(
             index_or_path=cam["index_or_path"],
@@ -53,43 +40,58 @@ def main():
         for name, cam in cfg["cameras"].items()
     }
 
+    # ---- Robot ----
     robot_cfg = SO100FollowerConfig(
-        port=robot_cfg_yaml["port"],
-        id=robot_cfg_yaml["id"],
+        port=cfg["robot"]["port"],
+        id=cfg["robot"]["id"],
         cameras=camera_config,
     )
-    robot = SO100Follower(robot_cfg)
-    robot.connect()
 
-    # ---- Task & features ----
-    task = cfg["task"]
-    robot_type = cfg["robot_type"]
+    # ---- Client config ----
+    policy_cfg = cfg["policy"]
+    async_cfg = cfg["async"]
+    server_cfg = cfg["server"]
 
-    action_features = hw_to_dataset_features(robot.action_features, "action")
-    obs_features = hw_to_dataset_features(robot.observation_features, "observation")
-    dataset_features = {**action_features, **obs_features}
+    client_cfg = RobotClientConfig(
+        robot=robot_cfg,
+        server_address=f"{server_cfg['host']}:{server_cfg['port']}",
+        policy_type=policy_cfg["type"],
+        pretrained_name_or_path=policy_cfg["pretrained_name_or_path"],
+        policy_device=policy_cfg["policy_device"],
+        client_device=policy_cfg["client_device"],
+        actions_per_chunk=async_cfg["actions_per_chunk"],
+        chunk_size_threshold=async_cfg["chunk_size_threshold"],
+        aggregate_fn_name=async_cfg["aggregate_fn_name"],
+        fps=async_cfg["fps"],
+        debug_visualize_queue_size=async_cfg["debug_visualize_queue_size"],
+        task=cfg.get("task", ""),
+    )
 
-    # ---- Inference loop ----
-    infer_cfg = cfg["inference"]
-    max_episodes = infer_cfg["max_episodes"]
-    max_steps = infer_cfg["max_steps_per_episode"]
+    # ---- Start client ----
+    client = RobotClient(client_cfg)
+    task = cfg.get("task", "")
 
-    print(f"Inference | model={model_id} | device={device} | episodes={max_episodes} x {max_steps} steps")
+    print(
+        f"Async inference | policy={policy_cfg['type']} "
+        f"| model={policy_cfg['pretrained_name_or_path']} "
+        f"| server={server_cfg['host']}:{server_cfg['port']}"
+    )
 
-    for ep in range(max_episodes):
-        for _ in range(max_steps):
-            obs = robot.get_observation()
-            obs_frame = build_inference_frame(
-                observation=obs, ds_features=dataset_features, device=device, task=task, robot_type=robot_type
-            )
+    if client.start():
+        action_receiver_thread = threading.Thread(
+            target=client.receive_actions, daemon=True
+        )
+        action_receiver_thread.start()
 
-            obs = preprocess(obs_frame)
-            action = model.select_action(obs)
-            action = postprocess(action)
-            action = make_robot_action(action, dataset_features)
-            robot.send_action(action)
-
-        print(f"Episode {ep + 1}/{max_episodes} finished!")
+        try:
+            client.control_loop(task)
+        except KeyboardInterrupt:
+            client.stop()
+            action_receiver_thread.join()
+            if async_cfg["debug_visualize_queue_size"]:
+                visualize_action_queue_size(client.action_queue_size)
+    else:
+        print("Failed to connect to policy server.")
 
 
 if __name__ == "__main__":
