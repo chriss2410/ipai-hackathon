@@ -32,9 +32,19 @@ version: 1
 # Policy
 # =============================================================================
 policy:
-  # Policy architecture. Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
-  # "act" is recommended for SO100-style robots (fast, stable, good for small datasets).
-  type: "act"
+  # Two modes — set ONE of these:
+  #
+  # 1. Fine-tune a pretrained model (recommended for SmolVLA):
+  #      path: "lerobot/smolvla_base"
+  #    Loads the full pretrained model and fine-tunes it.
+  #
+  # 2. Train from scratch:
+  #      type: "act"
+  #    Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
+  #
+  # If both are set, "path" takes priority.
+  path: "lerobot/smolvla_base"
+  # type: "act"
 
   # PyTorch device. Options: "cuda" (NVIDIA), "mps" (Apple Silicon), "cpu" (slow).
   device: "cuda"

@@ -48,8 +48,10 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         "lerobot-train",
         # Dataset
         f"--dataset.repo_id={cfg['dataset_id']}",
-        # Policy
-        f"--policy.type={cfg['policy']['type']}",
+        # Policy: path (fine-tune) takes priority over type (from scratch)
+        f"--policy.path={cfg['policy']['path']}"
+        if cfg["policy"].get("path")
+        else f"--policy.type={cfg['policy']['type']}",
         f"--policy.device={cfg['policy']['device']}",
         f"--policy.repo_id={hub_repo_id}",
         f"--policy.push_to_hub={'true' if cfg['hub']['push_to_hub'] else 'false'}",
@@ -114,11 +116,13 @@ def main():
 
     output_dir, job_name, hub_repo_id = derive_names(cfg)
     version_tag = f"-v{cfg['version']:02d}"
+    policy_src = cfg["policy"].get("path") or cfg["policy"].get("type")
     print(f"=== IPAI Training {version_tag} ===")
+    print(f"  Policy:     {policy_src}")
+    print(f"  Dataset:    {cfg['dataset_id']}")
     print(f"  Hub repo:   {hub_repo_id}")
     print(f"  Output dir: {output_dir}")
     print(f"  Job name:   {job_name}")
-    print(f"  Dataset:    {cfg['dataset_id']}")
     print(f"\nCommand: {' '.join(cmd)}\n")
 
     if args.dry_run:
