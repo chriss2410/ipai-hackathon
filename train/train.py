@@ -72,6 +72,7 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         f"--eval.n_episodes={cfg['eval']['n_episodes']}",
         # Wandb
         f"--wandb.enable={'true' if cfg['wandb']['enable'] else 'false'}",
+        f"--wandb.disable_artifact=true",
     ]
 
     # Optional hub fields
