@@ -1,4 +1,5 @@
 hf auth login
 
+tail -f /lerobot/ipai-hackathon/logs/smolVLA-New-v07.log
 
 hf password Ipai1234!
