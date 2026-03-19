@@ -53,7 +53,6 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         # Policy
         f"--policy.path={cfg['policy']['path']}",
         f"--policy.device={cfg['policy']['device']}",
-        f"--policy.dtype={cfg['policy']['dtype']}",
         f"--policy.repo_id={hub_repo_id}",
         f"--policy.push_to_hub={'true' if cfg['hub']['push_to_hub'] else 'false'}",
         # Output

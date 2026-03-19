@@ -37,9 +37,6 @@ policy:
   # Examples: "lerobot/smolvla_base", "outputs/train/my-model-v01/checkpoints/last/pretrained_model"
   path: "lerobot/smolvla_base"
 
-  # Data type. "bfloat16" is recommended for SmolVLA (faster, less memory).
-  dtype: "bfloat16"
-
   # PyTorch device. Options: "cuda" (NVIDIA), "mps" (Apple Silicon), "cpu" (slow).
   device: "cuda"
 
