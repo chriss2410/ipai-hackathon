@@ -1,12 +1,12 @@
 """Test async inference with a mock robot (no hardware required).
 
-Mimics a SO100 follower with 3 cameras (wrist, front, top) using random
-observations. Prints every action chunk the model produces so you can
-verify the pipeline end-to-end.
+Replays real dataset frames through the async inference pipeline so you
+can verify the full end-to-end without physical hardware.
 
 Usage (two terminals from repo root):
     Terminal 1: python infer/policy_server.py
     Terminal 2: python infer/test_inference.py
+    Terminal 2: python infer/test_inference.py --dataset lerobot/svla_so101_pickplace --episode 0
 """
 
 import argparse
@@ -20,11 +20,12 @@ import yaml
 from lerobot.async_inference.configs import RobotClientConfig
 from lerobot.async_inference.robot_client import RobotClient
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.robots.so_follower import SO100FollowerConfig
 
 
 # ---------------------------------------------------------------------------
-# Mock robot that fakes SO100 hardware
+# Mock robot that replays dataset frames
 # ---------------------------------------------------------------------------
 
 MOTOR_NAMES = [
@@ -38,15 +39,33 @@ MOTOR_NAMES = [
 
 
 class MockSO100:
-    """Drop-in replacement for SO100Follower — no serial port or cameras needed."""
+    """Drop-in replacement for SO100Follower that replays dataset frames."""
 
-    def __init__(self, config: SO100FollowerConfig):
+    def __init__(self, config: SO100FollowerConfig, dataset: LeRobotDataset, episode: int = 0,
+                 camera_map: dict[str, str] | None = None):
         self.config = config
         self._is_connected = False
         self._camera_shapes = {
             name: (cam.height, cam.width, 3) for name, cam in config.cameras.items()
         }
+        self._camera_names = list(config.cameras.keys())
+
+        # Load episode frames from dataset
+        self._frames = dataset.hf_dataset.filter(lambda ex: ex["episode_index"] == episode)
+        self._num_frames = len(self._frames)
         self._step = 0
+
+        # Build camera mapping: robot camera name → dataset key
+        dataset_camera_keys = list(dataset.meta.camera_keys)
+        if camera_map:
+            self._camera_map = camera_map
+        else:
+            # Fallback: positional mapping
+            self._camera_map = dict(zip(self._camera_names, dataset_camera_keys))
+
+        print(f"[MockSO100] Loaded episode {episode}: {self._num_frames} frames")
+        print(f"[MockSO100] Dataset cameras: {dataset_camera_keys}")
+        print(f"[MockSO100] Camera mapping: { {k: v for k, v in self._camera_map.items()} }")
 
     @property
     def is_connected(self) -> bool:
@@ -72,13 +91,29 @@ class MockSO100:
         print("[MockSO100] Disconnected")
 
     def get_observation(self) -> dict:
+        frame_idx = self._step % self._num_frames
+        frame = self._frames[frame_idx]
+
         obs: dict = {}
-        # Random motor positions
-        for m in MOTOR_NAMES:
-            obs[f"{m}.pos"] = float(np.random.uniform(-100, 100))
-        # Random camera images (uint8)
-        for name, shape in self._camera_shapes.items():
-            obs[name] = np.random.randint(0, 256, size=shape, dtype=np.uint8)
+
+        # Motor positions from dataset observation.state
+        state = frame["observation.state"]
+        for i, m in enumerate(MOTOR_NAMES):
+            obs[f"{m}.pos"] = float(state[i]) if i < len(state) else 0.0
+
+        # Camera images from dataset via camera_map
+        for cam_name in self._camera_names:
+            ds_key = self._camera_map[cam_name]
+            img = frame[ds_key]
+            # Dataset may return PIL Image or numpy array
+            if hasattr(img, "numpy"):
+                img = img.numpy()
+            img = np.array(img, dtype=np.uint8)
+            # Dataset images may be (C, H, W) — convert to (H, W, C) for robot API
+            if img.ndim == 3 and img.shape[0] in (1, 3):
+                img = np.transpose(img, (1, 2, 0))
+            obs[cam_name] = img
+
         self._step += 1
         return obs
 
@@ -111,6 +146,23 @@ def main():
         type=int,
         default=100,
         help="Number of control loop steps before stopping",
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="HuggingFace dataset repo ID (overrides config test.dataset)",
+    )
+    parser.add_argument(
+        "--episode",
+        type=int,
+        default=None,
+        help="Episode index to replay (overrides config test.episode)",
+    )
+    parser.add_argument(
+        "--show-cameras",
+        action="store_true",
+        help="Load the dataset and print available camera keys, then exit",
     )
     args = parser.parse_args()
 
@@ -153,11 +205,26 @@ def main():
         task=cfg.get("task", ""),
     )
 
+    # ---- Load dataset for replay ----
+    test_cfg = cfg.get("test", {})
+    dataset_id = args.dataset or test_cfg.get("dataset", "lerobot/svla_so101_pickplace")
+    episode = args.episode if args.episode is not None else test_cfg.get("episode", 0)
+    camera_map = test_cfg.get("camera_map")
+
+    print(f"Loading dataset {dataset_id} (episode {episode})...")
+    dataset = LeRobotDataset(dataset_id)
+
+    if args.show_cameras:
+        print(f"\nDataset camera keys: {list(dataset.meta.camera_keys)}")
+        print(f"Robot camera names:  {list(cfg['cameras'].keys())}")
+        print("\nSet test.camera_map in your config to map robot → dataset cameras.")
+        return
+
     # ---- Patch: inject mock robot instead of real hardware ----
     client = object.__new__(RobotClient)
 
     # Manually run the parts of RobotClient.__init__ with our mock robot
-    mock_robot = MockSO100(robot_cfg)
+    mock_robot = MockSO100(robot_cfg, dataset, episode=episode, camera_map=camera_map)
     mock_robot.connect()
 
     # Monkey-patch the robot onto the client, then call the rest of init
@@ -166,9 +233,19 @@ def main():
 
     # Re-run the rest of __init__ that sets up gRPC and threading
     import grpc
-    from lerobot.async_inference.helpers import FPSTracker, map_robot_keys_to_lerobot_features
+    from lerobot.async_inference.helpers import FPSTracker, RemotePolicyConfig, map_robot_keys_to_lerobot_features
 
     client.lerobot_features = map_robot_keys_to_lerobot_features(mock_robot)
+    client.server_address = client_cfg.server_address
+
+    client.policy_config = RemotePolicyConfig(
+        client_cfg.policy_type,
+        client_cfg.pretrained_name_or_path,
+        client.lerobot_features,
+        client_cfg.actions_per_chunk,
+        client_cfg.policy_device,
+    )
+
     client.channel = grpc.insecure_channel(
         client_cfg.server_address,
         options=[("grpc.max_receive_message_length", -1), ("grpc.max_send_message_length", -1)],
@@ -186,6 +263,8 @@ def main():
     client.action_queue_lock = threading.Lock()
     client.latest_action_lock = threading.Lock()
     client.latest_action = -1
+    client.action_chunk_size = -1
+    client._chunk_size_threshold = client_cfg.chunk_size_threshold
     client.must_go = threading.Event()
     client.fps_tracker = FPSTracker(client_cfg.fps)
     client.action_queue_size = []
@@ -197,6 +276,7 @@ def main():
         f"\n=== Mock Inference Test ===\n"
         f"  Policy:  {policy_cfg['type']}\n"
         f"  Model:   {policy_cfg['pretrained_name_or_path']}\n"
+        f"  Dataset: {dataset_id} (episode {episode}, {mock_robot._num_frames} frames)\n"
         f"  Server:  {server_cfg['host']}:{server_cfg['port']}\n"
         f"  Cameras: {list(cfg['cameras'].keys())}\n"
         f"  Steps:   {args.steps}\n"
@@ -213,11 +293,13 @@ def main():
             step = 0
             client.start_barrier.wait()
             while step < args.steps and not client.shutdown_event.is_set():
+                loop_start = time.perf_counter()
                 if client.actions_available():
                     client.control_loop_action(verbose=True)
                 if client._ready_to_send_observation():
                     client.control_loop_observation(task, verbose=True)
-                time.sleep(client.config.environment_dt)
+                elapsed = time.perf_counter() - loop_start
+                time.sleep(max(0, client.config.environment_dt - elapsed))
                 step += 1
 
             print(f"\n=== Test complete ({step} steps) ===")

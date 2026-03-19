@@ -90,3 +90,18 @@ async:
 
   # Plot action queue size at runtime for tuning async parameters.
   debug_visualize_queue_size: false
+
+# =============================================================================
+# Test / Mock Inference (used by test_inference.py only)
+# =============================================================================
+test:
+  # HuggingFace dataset to replay through the mock robot.
+  dataset: "lerobot/svla_so101_pickplace"
+  episode: 0
+
+  # Maps robot camera names → dataset camera keys.
+  # Run `python infer/test_inference.py --show-cameras` to list available keys.
+  camera_map:
+    wrist: "observation.images.side"
+    front: "observation.images.up"
+    top: "observation.images.side"
