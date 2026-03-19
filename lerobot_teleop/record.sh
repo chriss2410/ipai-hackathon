@@ -7,6 +7,6 @@ lerobot-record \
     --teleop.port=/dev/ttyACM0 \
     --teleop.id=leader \
     --display_data=true \
-    --dataset.repo_id=chris241094/record-level1-5 \
-    --dataset.num_episodes=30 \
-    --dataset.single_task="Pick black car and move to bodyshop" \
+    --dataset.repo_id=chris241094/dataset-movePainting-0 \
+    --dataset.num_episodes=10 \
+    --dataset.single_task="Move blue car from bodyshop to painting" \
