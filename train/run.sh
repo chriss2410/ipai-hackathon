@@ -28,9 +28,14 @@ short_name = cfg['model_id'].split('/')[-1]
 print(f'outputs/train/{short_name}{version_tag}')
 ")
 
-mkdir -p "${OUTPUT_DIR}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LOGDIR="${REPO_ROOT}/logs"
+mkdir -p "${LOGDIR}"
 
-LOGFILE="${OUTPUT_DIR}/training.log"
+RUN_NAME="$(basename ${OUTPUT_DIR})"
+LOGFILE="${LOGDIR}/${RUN_NAME}.log"
+PIDFILE="${LOGDIR}/${RUN_NAME}.pid"
+
 echo "=== Starting training ==="
 echo "  Config:   ${CONFIG}"
 echo "  Output:   ${OUTPUT_DIR}"
@@ -43,4 +48,4 @@ PID=$!
 echo "Training started in background (PID: ${PID})"
 echo "  Tail logs:  tail -f ${LOGFILE}"
 echo "  Stop:       kill ${PID}"
-echo "${PID}" > "${OUTPUT_DIR}/train.pid"
+echo "${PID}" > "${PIDFILE}"
