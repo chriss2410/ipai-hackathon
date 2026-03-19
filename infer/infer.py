@@ -2,6 +2,7 @@
 
 import argparse
 import threading
+from pathlib import Path
 
 import yaml
 
@@ -22,7 +23,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="config/infer_config.yaml",
+        default=str(Path(__file__).parent / "infer_config.yaml"),
         help="Path to YAML config file",
     )
     args = parser.parse_args()

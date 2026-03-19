@@ -1,6 +1,7 @@
 """Run SmolVLA inference on a physical robot using a YAML config file."""
 
 import argparse
+from pathlib import Path
 
 import yaml
 import torch
@@ -23,7 +24,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="config/infer_config_old.yaml",
+        default=str(Path(__file__).parent / "infer_config.yaml"),
         help="Path to YAML config file",
     )
     args = parser.parse_args()

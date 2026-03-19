@@ -32,18 +32,29 @@ version: 1
 # Policy
 # =============================================================================
 policy:
-  # Policy architecture. Options: "act", "diffusion", "smolvla", "tdmpc", "pi0"
-  # "smolvla" loads the pretrained VLM backbone and auto-adapts to your dataset's cameras.
-  # "act" is a lightweight alternative (no VLM, trains faster, good for small datasets).
-  type: "smolvla"
+  # Pretrained model to fine-tune from (HuggingFace repo ID or local path).
+  # The model's architecture auto-determines the policy type.
+  # Examples: "lerobot/smolvla_base", "outputs/train/my-model-v01/checkpoints/last/pretrained_model"
+  path: "lerobot/smolvla_base"
 
-  # Load pretrained VLM weights (SmolVLM2-500M-Video-Instruct).
-  # true  = fine-tuning (recommended) — VLM backbone is pretrained, action expert trains fresh
-  # false = train everything from scratch (not recommended)
-  load_vlm_weights: true
+  # Data type. "bfloat16" is recommended for SmolVLA (faster, less memory).
+  dtype: "bfloat16"
 
   # PyTorch device. Options: "cuda" (NVIDIA), "mps" (Apple Silicon), "cpu" (slow).
   device: "cuda"
+
+# =============================================================================
+# Rename Map
+# =============================================================================
+# Maps dataset feature names → policy feature names when they don't match.
+# Required when your dataset's camera names differ from the base model's.
+#
+# smolvla_base expects: camera1, camera2, camera3
+# Your cameras:         wrist, front, top
+rename_map:
+  "observation.images.wrist": "observation.images.camera1"
+  "observation.images.front": "observation.images.camera2"
+  "observation.images.top": "observation.images.camera3"
 
 # =============================================================================
 # Hub

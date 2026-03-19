@@ -10,8 +10,10 @@ Usage:
 """
 
 import argparse
+import json
 import subprocess
 import sys
+from pathlib import Path
 
 import yaml
 
@@ -49,8 +51,9 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
         # Dataset
         f"--dataset.repo_id={cfg['dataset_id']}",
         # Policy
-        f"--policy.type={cfg['policy']['type']}",
+        f"--policy.path={cfg['policy']['path']}",
         f"--policy.device={cfg['policy']['device']}",
+        f"--policy.dtype={cfg['policy']['dtype']}",
         f"--policy.repo_id={hub_repo_id}",
         f"--policy.push_to_hub={'true' if cfg['hub']['push_to_hub'] else 'false'}",
         # Output
@@ -80,9 +83,9 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
     if cfg["hub"].get("tags"):
         cmd.append(f"--policy.tags={cfg['hub']['tags']}")
 
-    # Optional policy fields
-    if cfg["policy"].get("load_vlm_weights") is not None:
-        cmd.append(f"--policy.load_vlm_weights={'true' if cfg['policy']['load_vlm_weights'] else 'false'}")
+    # Rename map (dataset feature names → policy feature names)
+    if cfg.get("rename_map"):
+        cmd.append(f"--rename_map={json.dumps(cfg['rename_map'])}")
 
     # Optional wandb fields
     if cfg["wandb"].get("project"):
@@ -98,7 +101,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="config/train_config.yaml",
+        default=str(Path(__file__).parent / "train_config.yaml"),
         help="Path to YAML config file",
     )
     parser.add_argument(
@@ -118,14 +121,15 @@ def main():
 
     output_dir, job_name, hub_repo_id = derive_names(cfg)
     version_tag = f"-v{cfg['version']:02d}"
-    policy_src = cfg["policy"]["type"]
-    vlm = "pretrained VLM" if cfg["policy"].get("load_vlm_weights") else "from scratch"
+    policy_src = cfg["policy"]["path"]
     print(f"=== IPAI Training {version_tag} ===")
-    print(f"  Policy:     {policy_src} ({vlm})")
+    print(f"  Base model: {policy_src}")
     print(f"  Dataset:    {cfg['dataset_id']}")
     print(f"  Hub repo:   {hub_repo_id}")
     print(f"  Output dir: {output_dir}")
     print(f"  Job name:   {job_name}")
+    if cfg.get("rename_map"):
+        print(f"  Rename map: {cfg['rename_map']}")
     print(f"\nCommand: {' '.join(cmd)}\n")
 
     if args.dry_run:
