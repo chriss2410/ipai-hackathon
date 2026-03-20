@@ -52,10 +52,12 @@ def main():
         help="Path to YAML config file",
     )
     parser.add_argument(
-        "--push-to-hub",
-        action="store_true",
-        help="Push merged dataset to HuggingFace Hub",
+        "--no-push-to-hub",
+        dest="push_to_hub",
+        action="store_false",
+        help="Skip pushing merged dataset to HuggingFace Hub",
     )
+    parser.set_defaults(push_to_hub=True)
     parser.add_argument(
         "--dry-run",
         action="store_true",
