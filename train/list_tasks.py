@@ -1,13 +1,17 @@
 """List unique text descriptions (tasks) in a LeRobot v3 dataset.
 
+LeRobot v3 stores task descriptions in meta/tasks.jsonl on the Hub,
+not inline in the parquet data. The parquet only has a task_index column.
+
 Usage:
     python train/list_tasks.py
     python train/list_tasks.py --repo-id chris241094/train-v6-merged
 """
 
 import argparse
+import json
 
-from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 
 def main():
@@ -20,21 +24,26 @@ def main():
     )
     args = parser.parse_args()
 
-    print(f"Loading dataset: {args.repo_id}")
-    ds = load_dataset(args.repo_id, split="train")
+    print(f"Loading tasks from: {args.repo_id}")
 
-    if "task" in ds.column_names:
-        col = "task"
-    elif "language_instruction" in ds.column_names:
-        col = "language_instruction"
-    else:
-        print(f"Available columns: {ds.column_names}")
-        raise SystemExit("No text description column found (looked for 'task', 'language_instruction')")
+    # LeRobot v3 stores tasks in meta/tasks.jsonl
+    tasks_file = hf_hub_download(
+        repo_id=args.repo_id,
+        filename="meta/tasks.jsonl",
+        repo_type="dataset",
+    )
 
-    unique_tasks = sorted(set(ds[col]))
-    print(f"\nFound {len(unique_tasks)} unique task(s) in column '{col}':\n")
-    for i, task in enumerate(unique_tasks, 1):
-        print(f"  {i}. {task}")
+    tasks = []
+    with open(tasks_file) as f:
+        for line in f:
+            entry = json.loads(line)
+            tasks.append(entry)
+
+    print(f"\nFound {len(tasks)} unique task(s):\n")
+    for entry in tasks:
+        idx = entry.get("task_index", "?")
+        desc = entry.get("task", entry.get("language_instruction", "N/A"))
+        print(f"  {idx}. {desc}")
 
 
 if __name__ == "__main__":
