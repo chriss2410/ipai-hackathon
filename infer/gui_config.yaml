@@ -1,0 +1,50 @@
+# =============================================================================
+# IPAI Hackathon - Inference GUI Configuration
+# =============================================================================
+# Usage: python infer/gui.py
+#        python infer/gui.py --config path/to/other.yaml
+
+# ---- Model ----
+model:
+  id: "chris241094/smolVLA-New-v01"
+
+# ---- Device ----
+# Options: "cuda", "cpu", "mps", "xpu" (Intel GPU)
+device: "cpu"
+
+# ---- Robot ----
+robot:
+  port: "/dev/ttyACM1"
+  id: "follower"
+
+# ---- Cameras ----
+# Keys and resolutions MUST match those used during training.
+cameras:
+  wrist:
+    index_or_path: "/dev/video8"
+    width: 640
+    height: 480
+    fps: 30
+  front:
+    index_or_path: "/dev/video0"
+    width: 640
+    height: 480
+    fps: 30
+  top:
+    index_or_path: "/dev/video2"
+    width: 640
+    height: 480
+    fps: 30
+
+# ---- Task ----
+task: "pick blue car"
+robot_type: ""
+
+# ---- Presets ----
+# Paths relative to this config file's directory.
+presets:
+  commands: "commands.json"
+  positions: "positions.json"
+
+# ---- GUI ----
+gui_port: 7860

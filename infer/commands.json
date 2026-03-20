@@ -1,0 +1,9 @@
+{
+  "commands": [
+    "pick blue car",
+    "pick red block",
+    "place object on the right",
+    "stack the blocks",
+    "push the cube forward"
+  ]
+}
