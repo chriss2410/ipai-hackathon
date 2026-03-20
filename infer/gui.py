@@ -8,6 +8,7 @@ Usage:
 import argparse
 import json
 import threading
+import time
 from pathlib import Path
 
 import gradio as gr
@@ -195,13 +196,21 @@ def teleop_loop():
         while not stop_event.is_set():
             robot_client.teleop_step()
 
-            # Update camera feeds
+            # Grab frames from follower observation (same serial transaction)
             try:
-                frames = robot_client.get_camera_frames()
+                obs = robot_client.get_observation()
+                frames = {
+                    name: obs[name]
+                    for name in robot_client.camera_names
+                    if name in obs
+                }
                 with state_lock:
                     latest_frames = frames
             except Exception:
                 pass
+
+            # Small delay to avoid hammering the serial bus
+            time.sleep(0.01)
     finally:
         with state_lock:
             running = False
