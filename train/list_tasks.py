@@ -1,7 +1,7 @@
 """List unique text descriptions (tasks) in a LeRobot v3 dataset.
 
-LeRobot v3 stores task descriptions in meta/tasks.jsonl on the Hub,
-not inline in the parquet data. The parquet only has a task_index column.
+LeRobot v3 stores task descriptions in meta/tasks.parquet on the Hub.
+The parquet data only has a task_index column as a foreign key.
 
 Usage:
     python train/list_tasks.py
@@ -9,8 +9,8 @@ Usage:
 """
 
 import argparse
-import json
 
+import pandas as pd
 from huggingface_hub import hf_hub_download
 
 
@@ -26,24 +26,18 @@ def main():
 
     print(f"Loading tasks from: {args.repo_id}")
 
-    # LeRobot v3 stores tasks in meta/tasks.jsonl
     tasks_file = hf_hub_download(
         repo_id=args.repo_id,
-        filename="meta/tasks.jsonl",
+        filename="meta/tasks.parquet",
         repo_type="dataset",
     )
 
-    tasks = []
-    with open(tasks_file) as f:
-        for line in f:
-            entry = json.loads(line)
-            tasks.append(entry)
+    tasks = pd.read_parquet(tasks_file)
+    tasks.index.name = "task"
 
     print(f"\nFound {len(tasks)} unique task(s):\n")
-    for entry in tasks:
-        idx = entry.get("task_index", "?")
-        desc = entry.get("task", entry.get("language_instruction", "N/A"))
-        print(f"  {idx}. {desc}")
+    for row in tasks.itertuples():
+        print(f"  {row.task_index}. {row.Index}")
 
 
 if __name__ == "__main__":
