@@ -39,8 +39,21 @@ def load_json(path: str) -> dict:
 # `python gui.py` and `gradio gui.py` hot-reload mode)
 # ---------------------------------------------------------------------------
 
+_initialized = False
+cfg: dict = {}
+model_client: ModelClient | None = None
+robot_client: RobotClient | None = None
+_commands: list[str] = []
+_positions: dict = {}
+
+
 def _init():
-    """Load config, model, robot, and presets. Called once at import time."""
+    """Load config, model, robot, and presets. Runs only once even under hot-reload."""
+    global _initialized, cfg, model_client, robot_client, _commands, _positions
+    if _initialized:
+        return
+    _initialized = True
+
     parser = argparse.ArgumentParser(description="IPAI Robot Inference GUI")
     parser.add_argument(
         "--config",
@@ -54,31 +67,29 @@ def _init():
     config_dir = Path(args.config).parent
 
     # 1. Load model (stays warm on GPU)
-    mc = ModelClient(
+    model_client = ModelClient(
         model_id=cfg["model"]["id"],
         device=cfg.get("device", "cpu"),
     )
 
     # 2. Connect robot
-    rc = RobotClient(
+    robot_client = RobotClient(
         port=cfg["robot"]["port"],
         robot_id=cfg["robot"]["id"],
         cameras=cfg["cameras"],
     )
-    rc.connect()
+    robot_client.connect()
 
     # 3. Load presets
     presets_cfg = cfg.get("presets", {})
     commands_path = config_dir / presets_cfg.get("commands", "commands.json")
     positions_path = config_dir / presets_cfg.get("positions", "positions.json")
 
-    commands = load_json(str(commands_path)).get("commands", [])
-    positions = load_json(str(positions_path))
-
-    return cfg, mc, rc, commands, positions
+    _commands = load_json(str(commands_path)).get("commands", [])
+    _positions = load_json(str(positions_path))
 
 
-cfg, model_client, robot_client, _commands, _positions = _init()
+_init()
 
 
 # ---------------------------------------------------------------------------
