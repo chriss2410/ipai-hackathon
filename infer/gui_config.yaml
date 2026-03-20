@@ -6,7 +6,7 @@
 
 # ---- Model ----
 model:
-  id: "chris241094/smolVLA-New-v07"
+  id: "chris241094/smolVLA-New-lora-v09"
 
 # ---- Device ----
 # Options: "cuda", "cpu", "mps", "xpu" (Intel GPU)
