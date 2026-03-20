@@ -16,6 +16,8 @@ import yaml
 
 from model_client import ModelClient
 from robot_client import RobotClient
+from sequence_runner import SequenceRunner
+from sequence_ui import build_sequence_tab
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -333,6 +335,8 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
     else:
         model_info = f"**Model:** {cfg['model']['id']}"
 
+    seq_runner = SequenceRunner(robot_client, model_client, _positions, cfg)
+
     with gr.Blocks(title="IPAI Robot Inference") as app:
         gr.Markdown("# IPAI Robot Inference")
         gr.Markdown(model_info)
@@ -344,49 +348,58 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
             cam2 = gr.Image(label=cam_labels[1], height=300)
             cam3 = gr.Image(label=cam_labels[2], height=300)
 
-        with gr.Row():
-            task_input = gr.Textbox(
-                value=cfg.get("task", ""),
-                label="Task Command",
-                placeholder="e.g. pick blue car",
-                scale=3,
-            )
-            preset_dropdown = gr.Dropdown(
-                choices=commands,
-                label="Presets",
-                scale=1,
-            )
+        with gr.Tabs():
+            with gr.Tab("Control"):
+                with gr.Row():
+                    task_input = gr.Textbox(
+                        value=cfg.get("task", ""),
+                        label="Task Command",
+                        placeholder="e.g. pick blue car",
+                        scale=3,
+                    )
+                    preset_dropdown = gr.Dropdown(
+                        choices=commands,
+                        label="Presets",
+                        scale=1,
+                    )
 
-        with gr.Row():
-            start_btn = gr.Button("Start", variant="primary")
-            stop_btn = gr.Button("Stop", variant="stop", interactive=False)
+                with gr.Row():
+                    start_btn = gr.Button("Start", variant="primary")
+                    stop_btn = gr.Button("Stop", variant="stop", interactive=False)
 
-        if robot_client.has_teleop:
-            gr.Markdown("### Teleop")
-            with gr.Row():
-                teleop_start_btn = gr.Button("Start Teleop", variant="primary")
-                teleop_stop_btn = gr.Button("Stop Teleop", variant="stop", interactive=False)
-        else:
-            teleop_start_btn = None
-            teleop_stop_btn = None
+                if robot_client.has_teleop:
+                    gr.Markdown("### Teleop")
+                    with gr.Row():
+                        teleop_start_btn = gr.Button("Start Teleop", variant="primary")
+                        teleop_stop_btn = gr.Button("Stop Teleop", variant="stop", interactive=False)
+                else:
+                    teleop_start_btn = None
+                    teleop_stop_btn = None
 
-        gr.Markdown("### Positions")
-        with gr.Row():
-            position_dropdown = gr.Dropdown(
-                choices=position_names,
-                label="Saved Positions",
-                scale=2,
-            )
-            go_btn = gr.Button("Go To", scale=1)
-            delete_btn = gr.Button("Delete", variant="stop", scale=1)
+                gr.Markdown("### Positions")
+                with gr.Row():
+                    position_dropdown = gr.Dropdown(
+                        choices=position_names,
+                        label="Saved Positions",
+                        scale=2,
+                    )
+                    go_btn = gr.Button("Go To", scale=1)
+                    delete_btn = gr.Button("Delete", variant="stop", scale=1)
 
-        with gr.Row():
-            pos_label_input = gr.Textbox(
-                label="Position Label",
-                placeholder="e.g. home",
-                scale=2,
-            )
-            save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
+                with gr.Row():
+                    pos_label_input = gr.Textbox(
+                        label="Position Label",
+                        placeholder="e.g. home",
+                        scale=2,
+                    )
+                    save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
+
+            with gr.Tab("Sequences"):
+                build_sequence_tab(
+                    runner=seq_runner,
+                    commands=commands,
+                    get_positions=lambda: _positions,
+                )
 
         # --- Event wiring ---
         teleop_btn = teleop_start_btn if teleop_start_btn else gr.Button(visible=False)

@@ -1,5 +1,8 @@
 """List unique text descriptions (tasks) in a LeRobot v3 dataset.
 
+LeRobot v3 stores task descriptions in meta/tasks.parquet on the Hub.
+The parquet data only has a task_index column as a foreign key.
+
 Usage:
     python train/list_tasks.py
     python train/list_tasks.py --repo-id chris241094/train-v6-merged
@@ -7,7 +10,8 @@ Usage:
 
 import argparse
 
-from datasets import load_dataset
+import pandas as pd
+from huggingface_hub import hf_hub_download
 
 
 def main():
@@ -20,21 +24,20 @@ def main():
     )
     args = parser.parse_args()
 
-    print(f"Loading dataset: {args.repo_id}")
-    ds = load_dataset(args.repo_id, split="train")
+    print(f"Loading tasks from: {args.repo_id}")
 
-    if "task" in ds.column_names:
-        col = "task"
-    elif "language_instruction" in ds.column_names:
-        col = "language_instruction"
-    else:
-        print(f"Available columns: {ds.column_names}")
-        raise SystemExit("No text description column found (looked for 'task', 'language_instruction')")
+    tasks_file = hf_hub_download(
+        repo_id=args.repo_id,
+        filename="meta/tasks.parquet",
+        repo_type="dataset",
+    )
 
-    unique_tasks = sorted(set(ds[col]))
-    print(f"\nFound {len(unique_tasks)} unique task(s) in column '{col}':\n")
-    for i, task in enumerate(unique_tasks, 1):
-        print(f"  {i}. {task}")
+    tasks = pd.read_parquet(tasks_file)
+    tasks.index.name = "task"
+
+    print(f"\nFound {len(tasks)} unique task(s):\n")
+    for row in tasks.itertuples():
+        print(f"  {row.task_index}. {row.Index}")
 
 
 if __name__ == "__main__":
