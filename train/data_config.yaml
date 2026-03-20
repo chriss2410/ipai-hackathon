@@ -17,7 +17,7 @@
 # HuggingFace repo IDs of datasets to merge. Episodes are concatenated in order.
 repo_ids:
   - "chris241094/dataset-pickupBlue-2"
-  - "chris241094/dataset-level1-0"
+  - "chris241094/dataset-level1-0" # pick-black
   - "chris241094/dataset-pickupBlue-1"
   - "chris241094/dataset-movePainting-0"
   - "chris241094/dataset-movePainting-1"
