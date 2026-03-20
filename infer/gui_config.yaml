@@ -13,7 +13,7 @@ model:
 # The adapter config embeds the base model path, but model.id above takes precedence.
 lora:
   enabled: true
-  adapter_id: "chris241094/smolVLA-New-lora-v09"
+  adapter_id: "chris241094/smolVLA-New-lora-v10"
 
 # ---- Device ----
 # Options: "cuda", "cpu", "mps", "xpu" (Intel GPU)

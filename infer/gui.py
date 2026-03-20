@@ -8,6 +8,7 @@ Usage:
 import argparse
 import json
 import threading
+import time
 from pathlib import Path
 
 import gradio as gr
@@ -16,6 +17,8 @@ import yaml
 
 from model_client import ModelClient
 from robot_client import RobotClient
+from sequence_runner import SequenceRunner
+from sequence_ui import build_sequence_tab
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -193,13 +196,21 @@ def teleop_loop():
         while not stop_event.is_set():
             robot_client.teleop_step()
 
-            # Update camera feeds
+            # Grab frames from follower observation (same serial transaction)
             try:
-                frames = robot_client.get_camera_frames()
+                obs = robot_client.get_observation()
+                frames = {
+                    name: obs[name]
+                    for name in robot_client.camera_names
+                    if name in obs
+                }
                 with state_lock:
                     latest_frames = frames
             except Exception:
                 pass
+
+            # Small delay to avoid hammering the serial bus
+            time.sleep(0.01)
     finally:
         with state_lock:
             running = False
@@ -284,6 +295,30 @@ def delete_position(position_name: str):
     return f"Deleted: {position_name}", gr.update(choices=list(_positions.keys()))
 
 
+def get_gpu_stats() -> str:
+    """Return XPU/CUDA memory stats, or empty string if unavailable."""
+    try:
+        import torch
+        device = cfg.get("device", "cpu")
+        if device.startswith("xpu") and torch.xpu.is_available():
+            alloc = torch.xpu.memory_allocated(0) / 1e6
+            reserved = torch.xpu.memory_reserved(0) / 1e6
+            return f"GPU: {alloc:.0f} MB alloc / {reserved:.0f} MB reserved"
+        elif device.startswith("cuda") and torch.cuda.is_available():
+            alloc = torch.cuda.memory_allocated(0) / 1e6
+            reserved = torch.cuda.memory_reserved(0) / 1e6
+            util = ""
+            try:
+                util_pct = torch.cuda.utilization(0)
+                util = f" | {util_pct}% util"
+            except Exception:
+                pass
+            return f"GPU: {alloc:.0f} MB alloc / {reserved:.0f} MB reserved{util}"
+    except Exception:
+        pass
+    return ""
+
+
 def refresh_cameras():
     """Called by gr.Timer to update camera feeds and step counter."""
     with state_lock:
@@ -312,7 +347,8 @@ def refresh_cameras():
         images.append(np.zeros((480, 640, 3), dtype=np.uint8))
 
     status = f"Running ({step_count} steps)" if is_running else "Idle"
-    return images[0], images[1], images[2], status
+    gpu = get_gpu_stats()
+    return images[0], images[1], images[2], status, gpu
 
 
 # ---------------------------------------------------------------------------
@@ -333,60 +369,73 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
     else:
         model_info = f"**Model:** {cfg['model']['id']}"
 
+    seq_runner = SequenceRunner(robot_client, model_client, _positions, cfg)
+
     with gr.Blocks(title="IPAI Robot Inference") as app:
         gr.Markdown("# IPAI Robot Inference")
         gr.Markdown(model_info)
 
-        status_box = gr.Textbox(value="Idle", label="Status", interactive=False)
+        with gr.Row():
+            status_box = gr.Textbox(value="Idle", label="Status", interactive=False, scale=2)
+            gpu_box = gr.Textbox(value=get_gpu_stats() or "N/A", label="GPU Memory", interactive=False, scale=1)
 
         with gr.Row():
             cam1 = gr.Image(label=cam_labels[0], height=300)
             cam2 = gr.Image(label=cam_labels[1], height=300)
             cam3 = gr.Image(label=cam_labels[2], height=300)
 
-        with gr.Row():
-            task_input = gr.Textbox(
-                value=cfg.get("task", ""),
-                label="Task Command",
-                placeholder="e.g. pick blue car",
-                scale=3,
-            )
-            preset_dropdown = gr.Dropdown(
-                choices=commands,
-                label="Presets",
-                scale=1,
-            )
+        with gr.Tabs():
+            with gr.Tab("Control"):
+                with gr.Row():
+                    task_input = gr.Textbox(
+                        value=cfg.get("task", ""),
+                        label="Task Command",
+                        placeholder="e.g. pick blue car",
+                        scale=3,
+                    )
+                    preset_dropdown = gr.Dropdown(
+                        choices=commands,
+                        label="Presets",
+                        scale=1,
+                    )
 
-        with gr.Row():
-            start_btn = gr.Button("Start", variant="primary")
-            stop_btn = gr.Button("Stop", variant="stop", interactive=False)
+                with gr.Row():
+                    start_btn = gr.Button("Start", variant="primary")
+                    stop_btn = gr.Button("Stop", variant="stop", interactive=False)
 
-        if robot_client.has_teleop:
-            gr.Markdown("### Teleop")
-            with gr.Row():
-                teleop_start_btn = gr.Button("Start Teleop", variant="primary")
-                teleop_stop_btn = gr.Button("Stop Teleop", variant="stop", interactive=False)
-        else:
-            teleop_start_btn = None
-            teleop_stop_btn = None
+                if robot_client.has_teleop:
+                    gr.Markdown("### Teleop")
+                    with gr.Row():
+                        teleop_start_btn = gr.Button("Start Teleop", variant="primary")
+                        teleop_stop_btn = gr.Button("Stop Teleop", variant="stop", interactive=False)
+                else:
+                    teleop_start_btn = None
+                    teleop_stop_btn = None
 
-        gr.Markdown("### Positions")
-        with gr.Row():
-            position_dropdown = gr.Dropdown(
-                choices=position_names,
-                label="Saved Positions",
-                scale=2,
-            )
-            go_btn = gr.Button("Go To", scale=1)
-            delete_btn = gr.Button("Delete", variant="stop", scale=1)
+                gr.Markdown("### Positions")
+                with gr.Row():
+                    position_dropdown = gr.Dropdown(
+                        choices=position_names,
+                        label="Saved Positions",
+                        scale=2,
+                    )
+                    go_btn = gr.Button("Go To", scale=1)
+                    delete_btn = gr.Button("Delete", variant="stop", scale=1)
 
-        with gr.Row():
-            pos_label_input = gr.Textbox(
-                label="Position Label",
-                placeholder="e.g. home",
-                scale=2,
-            )
-            save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
+                with gr.Row():
+                    pos_label_input = gr.Textbox(
+                        label="Position Label",
+                        placeholder="e.g. home",
+                        scale=2,
+                    )
+                    save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
+
+            with gr.Tab("Sequences"):
+                build_sequence_tab(
+                    runner=seq_runner,
+                    commands=commands,
+                    get_positions=lambda: _positions,
+                )
 
         # --- Event wiring ---
         teleop_btn = teleop_start_btn if teleop_start_btn else gr.Button(visible=False)
@@ -430,7 +479,7 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
         )
 
         timer = gr.Timer(value=0.2)
-        timer.tick(fn=refresh_cameras, outputs=[cam1, cam2, cam3, status_box])
+        timer.tick(fn=refresh_cameras, outputs=[cam1, cam2, cam3, status_box, gpu_box])
 
     return app
 
