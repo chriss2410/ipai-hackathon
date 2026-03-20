@@ -22,11 +22,11 @@ model_id: "chris241094/smolVLA-New-lora"
 
 # HuggingFace dataset ID in LeRobot format.
 # The policy auto-adapts to the dataset's motors, actions, and cameras.
-dataset_id: "chris241094/train-v5-merged"
+dataset_id: "chris241094/train-v6-merged"
 
 # Integer version number. Formatted as "-v{nn}" and appended to all output
 # assets. Bump this each time you start a new training run to avoid overwriting.
-version: 9
+version: 10
 
 # =============================================================================
 # Policy
