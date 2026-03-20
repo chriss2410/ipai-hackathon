@@ -6,11 +6,11 @@
 
 # ---- Model ----
 model:
-  id: "chris241094/smolVLA-New-v01"
+  id: "chris241094/smolVLA-New-v07"
 
 # ---- Device ----
 # Options: "cuda", "cpu", "mps", "xpu" (Intel GPU)
-device: "cpu"
+device: "xpu"
 
 # ---- Robot ----
 robot:
@@ -37,7 +37,7 @@ cameras:
     fps: 30
 
 # ---- Task ----
-task: "pick blue car"
+task: "Move blue car from bodyshop to painting"
 robot_type: ""
 
 # ---- Presets ----

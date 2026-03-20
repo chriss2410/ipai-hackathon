@@ -1,9 +1,8 @@
 {
   "commands": [
+    "Move blue car from bodyshop to painting",
     "pick blue car",
     "pick red block",
-    "place object on the right",
-    "stack the blocks",
-    "push the cube forward"
+    "place object on the right"
   ]
 }
