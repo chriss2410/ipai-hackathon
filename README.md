@@ -36,6 +36,10 @@ You’re welcome to upload the video into the Git.
 ![setup_1.jpg](./images/setup_1.jpg)
 ![setup_2.jpg](./images/setup_2.jpg)
 
+Technical setup:
+
+![tech-setup](./images/tech_setup.png)
+
 ### Dataset
 - With the command *“move car to painting”*, the robot sometimes remained unstable in the starting position.  
   → As a result, significantly more samples with *“pick car”* were included instead of *“move car to painting”*.  
