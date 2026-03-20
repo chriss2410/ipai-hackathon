@@ -1,0 +1,27 @@
+{
+  "name": "2steps",
+  "steps": [
+    {
+      "type": "position",
+      "value": "home"
+    },
+    {
+      "type": "command",
+      "value": "Pick blue car and move to bodyshop",
+      "duration": 10
+    },
+    {
+      "type": "position",
+      "value": "home"
+    },
+    {
+      "type": "command",
+      "value": "Move blue car from bodyshop to painting",
+      "duration": 10
+    },
+    {
+      "type": "position",
+      "value": "home"
+    }
+  ]
+}
