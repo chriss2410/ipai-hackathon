@@ -18,7 +18,7 @@
 #   - Hub repo:    chris241094/act-svla-so101-pickplace-v01
 #   - Output dir:  outputs/train/act-svla-so101-pickplace-v01
 #   - Job name:    act-svla-so101-pickplace-v01
-model_id: "chris241094/smolVLA-New"
+model_id: "chris241094/smolVLA-New-lora"
 
 # HuggingFace dataset ID in LeRobot format.
 # The policy auto-adapts to the dataset's motors, actions, and cameras.
@@ -26,7 +26,7 @@ dataset_id: "chris241094/train-v4"
 
 # Integer version number. Formatted as "-v{nn}" and appended to all output
 # assets. Bump this each time you start a new training run to avoid overwriting.
-version: 7
+version: 8
 
 # =============================================================================
 # Policy
@@ -108,6 +108,20 @@ eval:
 
   # Number of episodes per evaluation.
   n_episodes: 50
+
+# =============================================================================
+# LoRA / PEFT
+# =============================================================================
+# Parameter-efficient fine-tuning via LoRA. Requires: pip install lerobot[peft]
+# Adapter weights are saved alongside the checkpoint and loaded automatically
+# at inference time — no changes needed to infer/.
+#
+# target_modules: unset → LeRobot defaults (q_proj, v_proj in LM expert layers)
+# full_training_modules: trained at full precision alongside the LoRA adapters
+#   (state_proj, action_in_proj, action_out_proj, action_time_mlp_in/out)
+peft:
+  method_type: "LORA"
+  r: 64
 
 # =============================================================================
 # Weights & Biases

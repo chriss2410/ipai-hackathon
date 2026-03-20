@@ -93,6 +93,16 @@ def build_command(cfg: dict, resume: bool = False) -> list[str]:
     if cfg["wandb"].get("entity"):
         cmd.append(f"--wandb.entity={cfg['wandb']['entity']}")
 
+    # LoRA / PEFT
+    if cfg.get("peft"):
+        peft = cfg["peft"]
+        cmd.append(f"--peft.method_type={peft['method_type']}")
+        cmd.append(f"--peft.r={peft['r']}")
+        if peft.get("target_modules"):
+            cmd.append(f"--peft.target_modules={peft['target_modules']}")
+        if peft.get("full_training_modules"):
+            cmd.append(f"--peft.full_training_modules={peft['full_training_modules']}")
+
     return cmd
 
 
@@ -130,6 +140,9 @@ def main():
     print(f"  Job name:   {job_name}")
     if cfg.get("rename_map"):
         print(f"  Rename map: {cfg['rename_map']}")
+    if cfg.get("peft"):
+        peft = cfg["peft"]
+        print(f"  LoRA:       method={peft['method_type']}, r={peft['r']}")
     print(f"\nCommand: {' '.join(cmd)}\n")
 
     if args.dry_run:
