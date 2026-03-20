@@ -17,16 +17,19 @@
 # HuggingFace repo IDs of datasets to merge. Episodes are concatenated in order.
 repo_ids:
   - "chris241094/dataset-pickupBlue-2"
-  - "chris241094/dataset-level1-0"
+  - "chris241094/dataset-level1-0" # pick-black
   - "chris241094/dataset-pickupBlue-1"
   - "chris241094/dataset-movePainting-0"
+  - "chris241094/dataset-movePainting-1"
+  - "chris241094/dataset-movePainting-3"
+  - "chris241094/dataset-movePainting-4"
 
 
 # =============================================================================
 # Output
 # =============================================================================
 # Repo ID for the merged dataset.
-output_repo_id: "chris241094/train-v4"
+output_repo_id: "chris241094/train-v5-merged"
 
 # Optional local root directory for the merged dataset.
 # If not set, defaults to $HF_LEROBOT_HOME/<output_repo_id>.
