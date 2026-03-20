@@ -177,15 +177,58 @@ def on_preset_select(choice: str):
     return choice if choice else ""
 
 
-def on_position(position_name: str, positions: dict):
+def on_position(position_name: str):
     with state_lock:
         if running:
             return "Cannot move — inference is running. Stop first."
-    pos = positions.get(position_name)
+    pos = _positions.get(position_name)
     if pos is None:
         return f"Unknown position: {position_name}"
     robot_client.go_to_position(pos)
     return f"Moved to: {position_name}"
+
+
+def save_position(label: str):
+    """Save the robot's current joint positions under *label* and persist to disk."""
+    global _positions
+    label = label.strip()
+    if not label:
+        return "Enter a label first.", gr.update(choices=list(_positions.keys()))
+    with state_lock:
+        if running:
+            return "Cannot save — inference is running. Stop first.", gr.update(choices=list(_positions.keys()))
+    joints = robot_client.get_joint_positions()
+    _positions[label] = joints
+    # Persist
+    positions_path = Path(cfg.get("presets", {})\
+        .get("positions", str(SCRIPT_DIR / "positions.json")))
+    if not positions_path.is_absolute():
+        positions_path = SCRIPT_DIR / positions_path
+    with open(positions_path, "w") as f:
+        json.dump(_positions, f, indent=2)
+    return f"Saved position: {label}", gr.update(choices=list(_positions.keys()))
+
+
+def on_go_to_position(position_name: str):
+    """Go to a position selected from the dropdown."""
+    if not position_name:
+        return "Select a position first."
+    return on_position(position_name)
+
+
+def delete_position(position_name: str):
+    """Delete a saved position."""
+    global _positions
+    if not position_name:
+        return "Select a position first.", gr.update(choices=list(_positions.keys()))
+    _positions.pop(position_name, None)
+    positions_path = Path(cfg.get("presets", {})\
+        .get("positions", str(SCRIPT_DIR / "positions.json")))
+    if not positions_path.is_absolute():
+        positions_path = SCRIPT_DIR / positions_path
+    with open(positions_path, "w") as f:
+        json.dump(_positions, f, indent=2)
+    return f"Deleted: {position_name}", gr.update(choices=list(_positions.keys()))
 
 
 def refresh_cameras():
@@ -255,16 +298,25 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
             start_btn = gr.Button("Start", variant="primary")
             stop_btn = gr.Button("Stop", variant="stop", interactive=False)
 
-        if position_names:
-            gr.Markdown("### Saved Positions")
-            with gr.Row():
-                for name in position_names:
-                    btn = gr.Button(name.replace("_", " ").title())
-                    btn.click(
-                        fn=lambda n=name: on_position(n, positions),
-                        outputs=[status_box],
-                    )
+        gr.Markdown("### Positions")
+        with gr.Row():
+            position_dropdown = gr.Dropdown(
+                choices=position_names,
+                label="Saved Positions",
+                scale=2,
+            )
+            go_btn = gr.Button("Go To", scale=1)
+            delete_btn = gr.Button("Delete", variant="stop", scale=1)
 
+        with gr.Row():
+            pos_label_input = gr.Textbox(
+                label="Position Label",
+                placeholder="e.g. home",
+                scale=2,
+            )
+            save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
+
+        # --- Event wiring ---
         preset_dropdown.change(fn=on_preset_select, inputs=[preset_dropdown], outputs=[task_input])
 
         start_btn.click(
@@ -275,6 +327,22 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
         stop_btn.click(
             fn=on_stop,
             outputs=[status_box, start_btn, stop_btn],
+        )
+
+        go_btn.click(
+            fn=on_go_to_position,
+            inputs=[position_dropdown],
+            outputs=[status_box],
+        )
+        save_btn.click(
+            fn=save_position,
+            inputs=[pos_label_input],
+            outputs=[status_box, position_dropdown],
+        )
+        delete_btn.click(
+            fn=delete_position,
+            inputs=[position_dropdown],
+            outputs=[status_box, position_dropdown],
         )
 
         timer = gr.Timer(value=0.2)

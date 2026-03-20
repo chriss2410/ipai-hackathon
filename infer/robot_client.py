@@ -70,6 +70,11 @@ class RobotClient:
         """Send absolute joint positions to the robot."""
         return self._robot.send_action(action)
 
+    def get_joint_positions(self) -> dict[str, float]:
+        """Read current joint positions from the robot (excludes camera data)."""
+        obs = self._robot.get_observation()
+        return {k: float(v) for k, v in obs.items() if k not in self._camera_names}
+
     def go_to_position(self, position: dict[str, float]):
         """Drive robot to a named position (absolute joint values)."""
         self._robot.send_action(position)
