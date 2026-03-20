@@ -1,8 +1,10 @@
 {
   "commands": [
+    "Pick blue car and move to bodyshop",
+    "Pick black car and move to bodyshop",
     "Move blue car from bodyshop to painting",
-    "pick blue car",
-    "pick red block",
-    "place object on the right"
+    "Move blue car from bodyshop to painting position correction",
+    "Move blue car from bodyshop to painting",
+    "Move blue car from painting to assembly"
   ]
 }
