@@ -1,6 +1,10 @@
 """Robot client — wraps SO100 connection, observation, actions, and camera feeds."""
 
+import logging
+
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 from lerobot.datasets.feature_utils import hw_to_dataset_features
@@ -101,5 +105,8 @@ class RobotClient:
         """Read leader arm position and mirror it on the follower. Call in a loop."""
         if self._teleop is None:
             raise RuntimeError("No teleop leader configured.")
-        action = self._teleop.get_action()
-        self._robot.send_action(action)
+        try:
+            action = self._teleop.get_action()
+            self._robot.send_action(action)
+        except Exception as e:
+            logger.warning("Teleop step failed (retrying next cycle): %s", e)

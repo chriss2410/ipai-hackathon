@@ -8,6 +8,7 @@ Usage:
 import argparse
 import json
 import threading
+import time
 from pathlib import Path
 
 import gradio as gr
@@ -195,13 +196,21 @@ def teleop_loop():
         while not stop_event.is_set():
             robot_client.teleop_step()
 
-            # Update camera feeds
+            # Grab frames from follower observation (same serial transaction)
             try:
-                frames = robot_client.get_camera_frames()
+                obs = robot_client.get_observation()
+                frames = {
+                    name: obs[name]
+                    for name in robot_client.camera_names
+                    if name in obs
+                }
                 with state_lock:
                     latest_frames = frames
             except Exception:
                 pass
+
+            # Small delay to avoid hammering the serial bus
+            time.sleep(0.01)
     finally:
         with state_lock:
             running = False
@@ -286,6 +295,30 @@ def delete_position(position_name: str):
     return f"Deleted: {position_name}", gr.update(choices=list(_positions.keys()))
 
 
+def get_gpu_stats() -> str:
+    """Return XPU/CUDA memory stats, or empty string if unavailable."""
+    try:
+        import torch
+        device = cfg.get("device", "cpu")
+        if device.startswith("xpu") and torch.xpu.is_available():
+            alloc = torch.xpu.memory_allocated(0) / 1e6
+            reserved = torch.xpu.memory_reserved(0) / 1e6
+            return f"GPU: {alloc:.0f} MB alloc / {reserved:.0f} MB reserved"
+        elif device.startswith("cuda") and torch.cuda.is_available():
+            alloc = torch.cuda.memory_allocated(0) / 1e6
+            reserved = torch.cuda.memory_reserved(0) / 1e6
+            util = ""
+            try:
+                util_pct = torch.cuda.utilization(0)
+                util = f" | {util_pct}% util"
+            except Exception:
+                pass
+            return f"GPU: {alloc:.0f} MB alloc / {reserved:.0f} MB reserved{util}"
+    except Exception:
+        pass
+    return ""
+
+
 def refresh_cameras():
     """Called by gr.Timer to update camera feeds and step counter."""
     with state_lock:
@@ -314,7 +347,8 @@ def refresh_cameras():
         images.append(np.zeros((480, 640, 3), dtype=np.uint8))
 
     status = f"Running ({step_count} steps)" if is_running else "Idle"
-    return images[0], images[1], images[2], status
+    gpu = get_gpu_stats()
+    return images[0], images[1], images[2], status, gpu
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +375,9 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
         gr.Markdown("# IPAI Robot Inference")
         gr.Markdown(model_info)
 
-        status_box = gr.Textbox(value="Idle", label="Status", interactive=False)
+        with gr.Row():
+            status_box = gr.Textbox(value="Idle", label="Status", interactive=False, scale=2)
+            gpu_box = gr.Textbox(value=get_gpu_stats() or "N/A", label="GPU Memory", interactive=False, scale=1)
 
         with gr.Row():
             cam1 = gr.Image(label=cam_labels[0], height=300)
@@ -443,7 +479,7 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
         )
 
         timer = gr.Timer(value=0.2)
-        timer.tick(fn=refresh_cameras, outputs=[cam1, cam2, cam3, status_box])
+        timer.tick(fn=refresh_cameras, outputs=[cam1, cam2, cam3, status_box, gpu_box])
 
     return app
 
