@@ -67,9 +67,11 @@ def _init():
     config_dir = Path(args.config).parent
 
     # 1. Load model (stays warm on GPU)
+    lora_cfg = cfg.get("lora", {})
     model_client = ModelClient(
         model_id=cfg["model"]["id"],
         device=cfg.get("device", "cpu"),
+        lora_adapter_id=lora_cfg.get("adapter_id") if lora_cfg.get("enabled") else None,
     )
 
     # 2. Connect robot
@@ -322,8 +324,18 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
     cam_names = robot_client.camera_names
     cam_labels = cam_names + ["camera"] * (3 - len(cam_names))
 
+    lora_cfg = cfg.get("lora", {})
+    lora_enabled = lora_cfg.get("enabled", False)
+    if lora_enabled:
+        adapter_id = lora_cfg.get("adapter_id", "")
+        base_id = cfg["model"]["id"]
+        model_info = f"**Model:** {base_id} + LoRA adapter `{adapter_id}`"
+    else:
+        model_info = f"**Model:** {cfg['model']['id']}"
+
     with gr.Blocks(title="IPAI Robot Inference") as app:
         gr.Markdown("# IPAI Robot Inference")
+        gr.Markdown(model_info)
 
         status_box = gr.Textbox(value="Idle", label="Status", interactive=False)
 

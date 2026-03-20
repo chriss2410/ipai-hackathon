@@ -8,6 +8,13 @@
 model:
   id: "chris241094/smolVLA-New-v07"
 
+# ---- LoRA ----
+# Set enabled: true to load a LoRA adapter on top of the base model above.
+# The adapter config embeds the base model path, but model.id above takes precedence.
+lora:
+  enabled: true
+  adapter_id: "chris241094/smolVLA-New-lora-v09"
+
 # ---- Device ----
 # Options: "cuda", "cpu", "mps", "xpu" (Intel GPU)
 device: "xpu"
