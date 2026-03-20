@@ -17,6 +17,11 @@ robot:
   port: "/dev/ttyACM1"
   id: "follower"
 
+# ---- Teleop (leader arm) ----
+teleop:
+  port: "/dev/ttyACM0"
+  id: "leader"
+
 # ---- Cameras ----
 # Keys and resolutions MUST match those used during training.
 cameras:

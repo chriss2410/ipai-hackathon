@@ -5,12 +5,14 @@ import numpy as np
 from lerobot.cameras.opencv.configuration_opencv import OpenCVCameraConfig
 from lerobot.datasets.feature_utils import hw_to_dataset_features
 from lerobot.robots.so_follower import SO100Follower, SO100FollowerConfig
+from lerobot.teleoperators.so_leader import SO100Leader, SO100LeaderConfig
 
 
 class RobotClient:
     """Manages SO100 robot hardware: connection, observation, actions, cameras."""
 
-    def __init__(self, port: str, robot_id: str, cameras: dict[str, dict]):
+    def __init__(self, port: str, robot_id: str, cameras: dict[str, dict],
+                 teleop_port: str | None = None, teleop_id: str = "leader"):
         camera_config = {
             name: OpenCVCameraConfig(
                 index_or_path=cam["index_or_path"],
@@ -31,6 +33,12 @@ class RobotClient:
         self._camera_names = list(cameras.keys())
         self._dataset_features: dict | None = None
 
+        # Leader arm for teleoperation
+        self._teleop: SO100Leader | None = None
+        if teleop_port:
+            teleop_cfg = SO100LeaderConfig(port=teleop_port, id=teleop_id)
+            self._teleop = SO100Leader(teleop_cfg)
+
     def connect(self):
         """Connect to the robot hardware and derive dataset features."""
         self._robot.connect()
@@ -38,8 +46,14 @@ class RobotClient:
         obs_ft = hw_to_dataset_features(self._robot.observation_features, "observation")
         self._dataset_features = {**action_ft, **obs_ft}
         print(f"Robot connected. Cameras: {self._camera_names}")
+        if self._teleop:
+            self._teleop.connect()
+            print(f"Teleop leader connected on {self._teleop.config.port}")
 
     def disconnect(self):
+        if self._teleop and self._teleop.is_connected:
+            self._teleop.disconnect()
+            print("Teleop leader disconnected.")
         self._robot.disconnect()
         print("Robot disconnected.")
 
@@ -78,3 +92,14 @@ class RobotClient:
     def go_to_position(self, position: dict[str, float]):
         """Drive robot to a named position (absolute joint values)."""
         self._robot.send_action(position)
+
+    @property
+    def has_teleop(self) -> bool:
+        return self._teleop is not None
+
+    def teleop_step(self):
+        """Read leader arm position and mirror it on the follower. Call in a loop."""
+        if self._teleop is None:
+            raise RuntimeError("No teleop leader configured.")
+        action = self._teleop.get_action()
+        self._robot.send_action(action)

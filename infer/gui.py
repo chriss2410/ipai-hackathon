@@ -73,10 +73,13 @@ def _init():
     )
 
     # 2. Connect robot
+    teleop_cfg = cfg.get("teleop", {})
     robot_client = RobotClient(
         port=cfg["robot"]["port"],
         robot_id=cfg["robot"]["id"],
         cameras=cfg["cameras"],
+        teleop_port=teleop_cfg.get("port"),
+        teleop_id=teleop_cfg.get("id", "leader"),
     )
     robot_client.connect()
 
@@ -98,6 +101,7 @@ _init()
 
 stop_event = threading.Event()
 inference_thread: threading.Thread | None = None
+teleop_thread: threading.Thread | None = None
 
 state_lock = threading.Lock()
 latest_frames: dict[str, np.ndarray] = {}
@@ -152,7 +156,7 @@ def inference_loop(task: str, robot_type: str):
 def on_start(task_text: str):
     global inference_thread
     if not task_text.strip():
-        return "Enter a task first.", gr.update(interactive=True), gr.update(interactive=False)
+        return "Enter a task first.", gr.update(interactive=True), gr.update(interactive=False), gr.update(interactive=True)
 
     stop_event.clear()
     inference_thread = threading.Thread(
@@ -161,7 +165,7 @@ def on_start(task_text: str):
         daemon=True,
     )
     inference_thread.start()
-    return f"Running: {task_text.strip()}", gr.update(interactive=False), gr.update(interactive=True)
+    return f"Running: {task_text.strip()}", gr.update(interactive=False), gr.update(interactive=True), gr.update(interactive=False)
 
 
 def on_stop():
@@ -170,7 +174,54 @@ def on_stop():
     if inference_thread is not None:
         inference_thread.join(timeout=3)
         inference_thread = None
-    return f"Stopped after {step_count} steps.", gr.update(interactive=True), gr.update(interactive=False)
+    return f"Stopped after {step_count} steps.", gr.update(interactive=True), gr.update(interactive=False), gr.update(interactive=True)
+
+
+# ---------------------------------------------------------------------------
+# Teleop loop (runs in background thread)
+# ---------------------------------------------------------------------------
+
+def teleop_loop():
+    global running, latest_frames
+
+    with state_lock:
+        running = True
+
+    try:
+        while not stop_event.is_set():
+            robot_client.teleop_step()
+
+            # Update camera feeds
+            try:
+                frames = robot_client.get_camera_frames()
+                with state_lock:
+                    latest_frames = frames
+            except Exception:
+                pass
+    finally:
+        with state_lock:
+            running = False
+
+
+def on_teleop_start():
+    global teleop_thread
+    with state_lock:
+        if running:
+            return "Cannot start teleop — inference or teleop already running.", gr.update(), gr.update(), gr.update()
+
+    stop_event.clear()
+    teleop_thread = threading.Thread(target=teleop_loop, daemon=True)
+    teleop_thread.start()
+    return "Teleop running — move the leader arm.", gr.update(interactive=False), gr.update(interactive=False), gr.update(interactive=True)
+
+
+def on_teleop_stop():
+    global teleop_thread
+    stop_event.set()
+    if teleop_thread is not None:
+        teleop_thread.join(timeout=3)
+        teleop_thread = None
+    return "Teleop stopped.", gr.update(interactive=True), gr.update(interactive=True), gr.update(interactive=False)
 
 
 def on_preset_select(choice: str):
@@ -298,6 +349,15 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
             start_btn = gr.Button("Start", variant="primary")
             stop_btn = gr.Button("Stop", variant="stop", interactive=False)
 
+        if robot_client.has_teleop:
+            gr.Markdown("### Teleop")
+            with gr.Row():
+                teleop_start_btn = gr.Button("Start Teleop", variant="primary")
+                teleop_stop_btn = gr.Button("Stop Teleop", variant="stop", interactive=False)
+        else:
+            teleop_start_btn = None
+            teleop_stop_btn = None
+
         gr.Markdown("### Positions")
         with gr.Row():
             position_dropdown = gr.Dropdown(
@@ -317,17 +377,29 @@ def build_app(commands: list[str], positions: dict) -> gr.Blocks:
             save_btn = gr.Button("Save Current Position", variant="primary", scale=1)
 
         # --- Event wiring ---
+        teleop_btn = teleop_start_btn if teleop_start_btn else gr.Button(visible=False)
+
         preset_dropdown.change(fn=on_preset_select, inputs=[preset_dropdown], outputs=[task_input])
 
         start_btn.click(
             fn=on_start,
             inputs=[task_input],
-            outputs=[status_box, start_btn, stop_btn],
+            outputs=[status_box, start_btn, stop_btn, teleop_btn],
         )
         stop_btn.click(
             fn=on_stop,
-            outputs=[status_box, start_btn, stop_btn],
+            outputs=[status_box, start_btn, stop_btn, teleop_btn],
         )
+
+        if teleop_start_btn and teleop_stop_btn:
+            teleop_start_btn.click(
+                fn=on_teleop_start,
+                outputs=[status_box, start_btn, teleop_start_btn, teleop_stop_btn],
+            )
+            teleop_stop_btn.click(
+                fn=on_teleop_stop,
+                outputs=[status_box, start_btn, teleop_start_btn, teleop_stop_btn],
+            )
 
         go_btn.click(
             fn=on_go_to_position,
