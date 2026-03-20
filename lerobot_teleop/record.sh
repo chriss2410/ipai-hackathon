@@ -7,6 +7,6 @@ lerobot-record \
     --teleop.port=/dev/ttyACM0 \
     --teleop.id=leader \
     --display_data=true \
-    --dataset.repo_id=chris241094/dataset-movePainting-0 \
+    --dataset.repo_id=chris241094/dataset-moveassembly-2 \
     --dataset.num_episodes=10 \
-    --dataset.single_task="Move blue car from bodyshop to painting" \
+    --dataset.single_task="Move blue car from painting to assembly" \
