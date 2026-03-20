@@ -22,11 +22,11 @@ model_id: "chris241094/smolVLA-New-lora"
 
 # HuggingFace dataset ID in LeRobot format.
 # The policy auto-adapts to the dataset's motors, actions, and cameras.
-dataset_id: "chris241094/train-v4"
+dataset_id: "chris241094/train-v5-merged"
 
 # Integer version number. Formatted as "-v{nn}" and appended to all output
 # assets. Bump this each time you start a new training run to avoid overwriting.
-version: 8
+version: 9
 
 # =============================================================================
 # Policy
@@ -75,7 +75,7 @@ hub:
 training:
   # Total gradient update steps (not epochs).
   # Typical: 5000 for quick tests, 50000-100000 for real training.
-  steps: 30000
+  steps: 3000
 
   # Samples per gradient update. Reduce if you hit CUDA OOM.
   batch_size: 64
