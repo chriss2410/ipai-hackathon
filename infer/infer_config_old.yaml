@@ -11,7 +11,7 @@ model:
   # HuggingFace model ID of the pretrained policy to load.
   # Can be an official model (e.g. "lerobot/smolvla_base") or your own
   # trained model pushed to the Hub (e.g. "chris241094/smolVLA-Test-v01").
-  id: "chris241094/smolVLA-New-v01"
+  id: "chris241094/smolVLA-New-v07"
 
 # ---- Device ----
 # PyTorch device for inference. Options:
@@ -19,7 +19,7 @@ model:
 #   "cpu"   - CPU only (works everywhere, slower)
 #   "mps"   - Apple Silicon GPU
 # Note: SmolVLA can run on CPU for real-time inference with small action spaces.
-device: "cpu"
+device: "xpu"
 
 # ---- Robot ----
 robot:
@@ -70,7 +70,7 @@ cameras:
 # Natural language description of the task for the robot to perform.
 # SmolVLA is a vision-language-action model that conditions on this text.
 # Examples: "pick the red block", "move to the left", "stack the cups"
-task: "pick blue car"
+task: "Move blue car from bodyshop to painting"
 
 # Robot type string for multi-embodiment datasets/models.
 # Leave empty ("") if the model was trained on a single robot type.
